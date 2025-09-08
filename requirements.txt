@@ -1,0 +1,9 @@
+pandas == 1.3.5
+numpy == 1.21.6
+torch == 2.3.0  #可根据自己cuda版本替换
+Bottleneck == 1.4.0
+scipy == 1.7.3
+PyYAML~=6.0.2
+optuna~=3.5.0
+tqdm~=4.67.1
+scikit-learn == 1.2.2
