@@ -13,12 +13,9 @@ def parse_args():
 
     parser.add_argument('--model',type = str,default ='SASRec' ,choices = ['SASRec','FMLP','BSARec'],help='选择推荐模型')
 
-    parser.add_argument ('--algorithm', type = str, default = 'RESKD_I',
+    parser.add_argument ('--algorithm', type = str, default = 'base_Top_k',
                          choices = ['base','UDL','UDL_DDR','UDL_RESKD','UDL_DDR_RESKD','RESKD_I','DDR','RESKD_DDR','RESKD','UDL',
-                                    'base_DHC','UDL_DHC', 'UDL_DDR_DHC', 'UDL_DDR_RESKD_DHC', 'DDR_DHC','RESKD_DHC','DDR_RESKD_DHC','RESKD_I_DHC','UDL_RESKD_DHC',
                                     'base_Top_k','UDL_Top_k','UDL_DDR_Top_k','UDL_DDR_RESKD_Top_k','DDR_Top_k','RESKD_Top_k','UDL_RESKD_Top_k','DDR_RESKD_Top_k','RESKD_I_Top_k',
-                                    'base_Q_Double','UDL_Q_Double','UDL_DDR_Q_Double','UDL_DDR_RESKD_Q_Double','UDL_RESKD_Q_Double','DDR_Q_Double','DDR_RESKD_Q_Double','RESKD_Q_Double','RESKD_I_Q_Double',
-                                    'base_Q_Single', 'UDL_Q_Single','UDL_DDR_Q_Single','UDL_DDR_RESKD_Q_Single','UDL_RESKD_Q_Single','DDR_Q_Single','DDR_RESKD_Q_Single','RESKD_Q_Single','RESKD_I_Q_Single','UDL',
                                     ], help = '算法选择')
 
     # 调整为与参考项目SAS.torch一致的参数配置
@@ -65,26 +62,10 @@ def parse_args():
     parser.add_argument ('--distill_freq', type = int, default = 3,  help = '蒸馏频率')
     parser.add_argument ('--eval_k', type = int, default = 10,  help = '评估')
 
-    # --- 梯度聚类 (FedRAS核心) 配置 ---
-    parser.add_argument ('--use_clustering', action = 'store_true', default = True,
-                         help = '是否采用梯度聚类')
-    parser.add_argument ('--max_iterations', type = int, default = 1000,
-                         help = '最大迭代次数')
-    parser.add_argument ('--cluster_range', type = float, default = 0.2,
-                         help = '聚类波动因子 alpha (α)，用于计算聚类数量的上下限')
-    parser.add_argument ('--target_clusters', type = int, default = 105, help = '期望的目标聚类数 (会被下面的 cr 覆盖)')
-    parser.add_argument ('--cr', type = float, default = 0.9063, help = '通信压缩率 (Compression Rate)')
-
-    # --- 量化配置 ---
-    parser.add_argument ('--quantize_gradients', action = 'store_true', default = True,
-                         help = '是否采用量化梯度')
-    parser.add_argument ('--quantization_bits', type = int, default = 8, help = '量化位数')
-    parser.add_argument ('--quantization_type', type = str, default = 'uniform',
-                         choices = ['uniform','log','asymmetric','mean_std','binary','ternary'], help='量化类型')
 
     # Top-k配置
-    parser.add_argument ('--top_k_ratio', type = float, default = 0.3,help = 'Top-k比例，默认保留10%的梯度')
-    parser.add_argument ('--top_k_method', type = str, default = 'layer-wise',
+    parser.add_argument ('--top_k_ratio', type = float, default = 0.1,help = 'Top-k比例，默认保留10%的梯度')
+    parser.add_argument ('--top_k_method', type = str, default = 'global',
                          choices = ['global', 'layer-wise'], help='Top-k类型')
     parser.add_argument ('--min_k', type = int, default = 1, help = '每层最少保留的梯度数量')
 

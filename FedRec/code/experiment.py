@@ -13,7 +13,7 @@ DATASETS_TO_RUN = [
 
 # List of algorithms to run.
 # These are derived from the filenames in the algorithm directories.
-ALGORITHMS = ['base_DHC','UDL_DHC', 'UDL_DDR_DHC', 'UDL_DDR_RESKD_DHC','DDR_RESKD_DHC','RESKD_I_DHC','UDL_RESKD_DHC',]
+ALGORITHMS = ['base']
 
 def run_experiment():
     """
@@ -24,7 +24,7 @@ def run_experiment():
     for model in MODEL:
         for dataset in DATASETS_TO_RUN:
             for algorithm in ALGORITHMS:
-                print(f"--- Running experiment: Algorithm={algorithm}, Dataset={dataset} ---")
+                print(f"--- Running experiment:Model={model} Algorithm={algorithm}, Dataset={dataset} ---")
                 command = [
                     sys.executable,
                     main_script_path,

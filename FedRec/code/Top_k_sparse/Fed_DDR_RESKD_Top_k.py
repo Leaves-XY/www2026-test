@@ -142,60 +142,73 @@ class Clients:
         gradient_indices = {}
 
         if self.top_k_method == 'global':
-            # 全局Top-k选择：将所有梯度合并后选择最大的k个
-            all_gradients = []
-            all_indices = []
-
+            # --- 修正后的全局Top-k逻辑 ---
+            # 1. 收集并展平所有梯度，同时记录各层信息
+            all_gradients_flat = []
+            layer_info = []  # 存储层名称和原始形状
             for name, grad in gradients_dict.items():
                 if grad is not None:
-                    grad_flat = grad.flatten()
-                    indices = torch.arange(len(grad_flat), device=self.device)
-                    all_gradients.append(grad_flat)
-                    all_indices.append((name, indices))
+                    all_gradients_flat.append(grad.flatten())
+                    layer_info.append({'name': name, 'shape': grad.shape})
 
-            if not all_gradients:
+            if not all_gradients_flat:
                 return compressed_gradients, gradient_indices
 
-            # 合并所有梯度
-            combined_gradients = torch.cat(all_gradients)
-            combined_indices = torch.cat([indices for _, indices in all_indices])
+            # 2. 合并成一个全局梯度向量
+            combined_gradients = torch.cat(all_gradients_flat)
 
-            # 计算Top-k
+            # 3. 计算 Top-k 并获取全局索引
             k = max(self.min_k, int(len(combined_gradients) * self.top_k_ratio))
-            _, top_indices = torch.topk(torch.abs(combined_gradients), k)
+            
+            # 处理k=0的边缘情况
+            if k == 0:
+                for info in layer_info:
+                    compressed_gradients[info['name']] = torch.zeros(info['shape'], device=self.device)
+                    gradient_indices[info['name']] = torch.tensor([], dtype=torch.long, device=self.device)
+                return compressed_gradients, gradient_indices
 
-            # 重建压缩梯度
+            _, top_indices_global = torch.topk(torch.abs(combined_gradients), k)
+
+            # 4. 创建一个稀疏的全局梯度向量，只保留Top-k的值
+            sparse_combined_gradients = torch.zeros_like(combined_gradients)
+            sparse_combined_gradients[top_indices_global] = combined_gradients[top_indices_global]
+
+            # 5. 将稀疏向量切片并重建回各层的原始形状
             start_idx = 0
+            for i, info in enumerate(layer_info):
+                grad_size = all_gradients_flat[i].numel()
+                
+                # 从稀疏全局向量中提取当前层的部分
+                layer_grad_sparse_flat = sparse_combined_gradients[start_idx : start_idx + grad_size]
+                
+                # 重塑为原始形状
+                compressed_gradients[info['name']] = layer_grad_sparse_flat.reshape(info['shape'])
+                
+                # 找到非零元素的局部索引并展平
+                gradient_indices[info['name']] = torch.nonzero(layer_grad_sparse_flat, as_tuple=False).flatten()
+
+                start_idx += grad_size
+
+        else:  # layer-wise (逐层选择)
             for name, grad in gradients_dict.items():
                 if grad is not None:
                     grad_flat = grad.flatten()
-                    grad_size = len(grad_flat)
+                    num_elements = grad_flat.numel()
 
-                    # 找到属于当前层的Top-k索引
-                    layer_mask = (combined_indices >= start_idx) & (combined_indices < start_idx + grad_size)
-                    layer_top_indices = combined_indices[layer_mask]
-                    layer_top_indices = layer_top_indices - start_idx
+                    if num_elements == 0:
+                        k = 0
+                    else:
+                        k = max(self.min_k, int(num_elements * self.top_k_ratio))
+                        k = min(k, num_elements) # 确保k不超过元素总数
 
-                    # 创建压缩梯度
-                    compressed_grad = torch.zeros_like(grad_flat)
-                    compressed_grad[layer_top_indices] = grad_flat[layer_top_indices]
-                    compressed_gradients[name] = compressed_grad.reshape(grad.shape)
-                    gradient_indices[name] = layer_top_indices
+                    if k == 0:
+                        compressed_grad = torch.zeros_like(grad_flat)
+                        top_indices = torch.tensor([], dtype=torch.long, device=self.device)
+                    else:
+                        _, top_indices = torch.topk(torch.abs(grad_flat), k)
+                        compressed_grad = torch.zeros_like(grad_flat)
+                        compressed_grad[top_indices] = grad_flat[top_indices]
 
-                    start_idx += grad_size
-
-        else:  # layer-wise
-            # 逐层Top-k选择：每层独立选择最大的k个梯度
-            for name, grad in gradients_dict.items():
-                if grad is not None:
-                    grad_flat = grad.flatten()
-                    k = max(self.min_k, int(len(grad_flat) * self.top_k_ratio))
-
-                    # 逐层选择Top-k
-                    _, top_indices = torch.topk(torch.abs(grad_flat), k)
-
-                    compressed_grad = torch.zeros_like(grad_flat)
-                    compressed_grad[top_indices] = grad_flat[top_indices]
                     compressed_gradients[name] = compressed_grad.reshape(grad.shape)
                     gradient_indices[name] = top_indices
 
