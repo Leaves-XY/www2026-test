@@ -27,44 +27,8 @@ if __name__ == '__main__':
     logger.info(f"最大序列长度: {config['max_seq_len']}")
     logger.info(f"批次大小: {config['batch_size']}")
 
-    # 根据 algorithm 动态导入模块
-    if algorithm == 'base_Q_Double':
-        from FedRec.code.Quantization.Q_Double.Fed_base_Q_Double import Clients, Server
-    elif algorithm == 'UDL_Q_Double':
-        from FedRec.code.Quantization.Q_Double.Fed_UDL_Q_Double import Clients, Server
-    elif algorithm == 'UDL_DDR_Q_Double':
-        from FedRec.code.Quantization.Q_Double.Fed_UDL_DDR_Q_Double import Clients, Server
-    elif algorithm == 'DDR_Q_Double':
-        from FedRec.code.Quantization.Q_Double.Fed_DDR_Q_Double import Clients, Server
-    elif algorithm == 'UDL_DDR_RESKD_Q_Double':
-        from FedRec.code.Quantization.Q_Double.Fed_UDL_DDR_RESKD_Q_Double import Clients, Server
-    elif algorithm == 'UDL_RESKD_Q_Double':
-        from FedRec.code.Quantization.Q_Double.Fed_UDL_RESKD_Q_Double import Clients, Server
-    elif algorithm == 'DDR_RESKD_Q_Double':
-        from FedRec.code.Quantization.Q_Double.Fed_DDR_RESKD_Q_Double import Clients, Server
-    elif algorithm == 'RESKD_Q_Double':
-        from FedRec.code.Quantization.Q_Double.Fed_RESKD_Q_Double import Clients, Server
-    elif algorithm == 'RESKD_I_Q_Double':
-        from FedRec.code.Quantization.Q_Double.Fed_RESKD_I_Q_Double import Clients, Server
-    elif algorithm == 'base_Q_Single':
-        from FedRec.code.Quantization.Q_Single.Fed_base_Q_Single import Clients, Server
-    elif algorithm == 'UDL_Q_Single':
-        from FedRec.code.Quantization.Q_Single.Fed_UDL_Q_Single import Clients, Server
-    elif algorithm == 'UDL_DDR_Q_Single':
-        from FedRec.code.Quantization.Q_Single.Fed_UDL_DDR_Q_Single import Clients, Server
-    elif algorithm == 'DDR_Q_Single':
-        from FedRec.code.Quantization.Q_Single.Fed_DDR_Q_Single import Clients, Server
-    elif algorithm == 'UDL_DDR_RESKD_Q_Single':
-        from FedRec.code.Quantization.Q_Single.Fed_UDL_DDR_RESKD_Q_Single import Clients, Server
-    elif algorithm == 'UDL_RESKD_Q_Single':
-        from FedRec.code.Quantization.Q_Single.Fed_UDL_RESKD_Q_Single import Clients, Server
-    elif algorithm == 'DDR_RESKD_Q_Single':
-        from FedRec.code.Quantization.Q_Single.Fed_DDR_RESKD_Q_Single import Clients, Server
-    elif algorithm == 'RESKD_Q_Single':
-        from FedRec.code.Quantization.Q_Single.Fed_RESKD_Q_Single import Clients, Server
-    elif algorithm == 'RESKD_I_Q_Single':
-        from FedRec.code.Quantization.Q_Single.Fed_RESKD_I_Q_Single import Clients, Server
-    elif algorithm == 'base_Top_k':
+
+    if algorithm == 'base_Top_k':
         from FedRec.code.Top_k_sparse.Fed_base_Top_k import Clients, Server
     elif algorithm == 'UDL_Top_k':
         from FedRec.code.Top_k_sparse.Fed_UDL_Top_k import Clients, Server
@@ -82,24 +46,6 @@ if __name__ == '__main__':
         from FedRec.code.Top_k_sparse.Fed_RESKD_Top_k import Clients, Server
     elif algorithm == 'RESKD_I_Top_k':
         from FedRec.code.Top_k_sparse.Fed_RESKD_I_Top_k import Clients, Server
-    elif algorithm == 'base_DHC':
-        from FedRec.code.DivisiveHierarchicalClustering.Fed_base_DHC import Clients, Server
-    elif algorithm == 'UDL_DHC':
-        from FedRec.code.DivisiveHierarchicalClustering.Fed_UDL_DHC import Clients, Server
-    elif algorithm == 'UDL_DDR_DHC':
-        from FedRec.code.DivisiveHierarchicalClustering.Fed_UDL_DDR_DHC import Clients, Server
-    elif algorithm == 'UDL_DDR_RESKD_DHC':
-        from FedRec.code.DivisiveHierarchicalClustering.Fed_UDL_DDR_RESKD_DHC import Clients, Server
-    elif algorithm == 'DDR_DHC':
-        from FedRec.code.DivisiveHierarchicalClustering.Fed_DDR_DHC import Clients, Server
-    elif algorithm == 'RESKD_DHC':
-        from FedRec.code.DivisiveHierarchicalClustering.Fed_RESKD_DHC import Clients, Server
-    elif algorithm == 'DDR_RESKD_DHC':
-        from FedRec.code.DivisiveHierarchicalClustering.Fed_DDR_RESKD_DHC import Clients, Server
-    elif algorithm == 'RESKD_I_DHC':
-        from FedRec.code.DivisiveHierarchicalClustering.Fed_RESKD_DHC import Clients, Server
-    elif algorithm == 'UDL_RESKD_DHC':
-        from FedRec.code.DivisiveHierarchicalClustering.Fed_UDL_RESKD_DHC import Clients, Server
     elif algorithm=='base':
         from FedRec.code.base.Fed_base import Clients, Server
     elif algorithm=='UDL':
