@@ -1,6 +1,6 @@
 #Train
 early_stop_enabled: True  #早停
-early_stop: 30
+early_stop: 10
 eval_k: 10  #评估指标 HR@K NDCG@K
 
 # Path
@@ -20,18 +20,7 @@ dim_l: 64  # 大型设备嵌入维度
 # 设备类型配置
 device_types: {}  # 设备类型分配字典，空字典表示使用随机分配
 
-# 量化配置
-quantization_bits: 8  # 量化位数 (4, 8, 16)
-quantization_method: 'symmetric'  # 量化方法: 'auto', 'symmetric', 'adaptive', 'log', 'kmeans', 'linear'
-adaptive_percentile: [0.01, 0.99]  # 自适应量化的百分位数范围
-kmeans_iterations: 10  # K-means量化的迭代次数
-
 # Top-k配置
 top_k_ratio: 0.1  # Top-k比例，默认保留10%的梯度 (0.01-1.0)
 top_k_method: 'global'  # Top-k选择方法: 'global' 或 'layer-wise'
 min_k: 1  # 每层最少保留的梯度数量
-
-#聚类配置
-use_clustering: True  # 是否使用梯度聚类
-cr: 0.8  # 压缩率，用于计算目标簇数 C_e = N * (1 - CR)
-cluster_range: 0.1  # 聚类范围alpha, C_i = C_e * (1-alpha), C_m = C_e * (1+alpha)
