@@ -4,16 +4,14 @@ import sys
 
 # List of datasets to run experiments on.
 # Add or remove dataset names as needed.
-# Available datasets: [ml-100k, ml-1m, LastFM, Yelp, beauty, Sports_and_Outdoors, Toys_and_Games, Steam, Video]
+# Available datasets: ['ml-100k', 'ml-1m', 'LastFM', 'Yelp','Toys_and_Games','Sports_and_Outdoors','Video','Steam','beauty']
 MODEL=['SASRec']
 
-DATASETS_TO_RUN = [
-    "ml-100k",
-]
+DATASETS_TO_RUN =['ml-100k', 'ml-1m', 'LastFM', 'Yelp','Toys_and_Games','Sports_and_Outdoors','Video','Steam','beauty']
 
 # List of algorithms to run.
 # These are derived from the filenames in the algorithm directories.
-ALGORITHMS = ['base']
+ALGORITHMS = ['base','UDL','UDL_DDR','UDL_DDR_RESKD']
 
 def run_experiment():
     """

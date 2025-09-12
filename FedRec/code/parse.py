@@ -49,7 +49,7 @@ def parse_args():
     parser.add_argument('--eval_freq', type=int, default=1,
                         help='每隔多少个epoch进行一次评估，默认为20')
 
-    parser.add_argument ('--full_eval', action = 'store_true', default = False,
+    parser.add_argument ('--full_eval', action = 'store_true', default = True,
                          help = '是否使用全量评估')
 
     parser.add_argument('--c', type=int, default=9, help='c for BSARec ,用来平衡模型对“从数据中学到的复杂模式（自注意力）”和“预设的通用规律（傅里叶归纳偏置）”的依赖程度')
