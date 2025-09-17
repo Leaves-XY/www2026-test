@@ -9,6 +9,8 @@ def parse_args():
     # 獲取當前文件所在目錄
     current_dir = os.path.dirname(os.path.abspath(__file__))
     config_path = os.path.join(current_dir, 'config', 'basic.yaml')
+
+
     config = yaml.safe_load(open(config_path, 'r', encoding='utf-8'))
 
     parser.add_argument('--model',type = str,default ='SASRec' ,choices = ['SASRec','FMLP','BSARec'],help='选择推荐模型')
@@ -18,7 +20,8 @@ def parse_args():
                                     'base_Top_k','UDL_Top_k','UDL_DDR_Top_k','UDL_DDR_RESKD_Top_k','DDR_Top_k','RESKD_Top_k','UDL_RESKD_Top_k','DDR_RESKD_Top_k','RESKD_I_Top_k',
                                     ], help = '算法选择')
 
-    # 调整为与参考项目SAS.torch一致的参数配置
+    parser.add_argument('--early_stop',type=int,default=15,help='早停轮数')
+
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate (参考SAS.torch: 0.001)')
     parser.add_argument('--batch_size', type=int, default=128, help='Batch size (参考SAS.torch: 128)')
     parser.add_argument('--l2_reg', type=float, default=0, help='L2 regularization coefficient')
@@ -51,6 +54,8 @@ def parse_args():
 
     parser.add_argument ('--full_eval', action = 'store_true', default = True,
                          help = '是否使用全量评估')
+
+
 
     parser.add_argument('--c', type=int, default=9, help='c for BSARec ,用来平衡模型对“从数据中学到的复杂模式（自注意力）”和“预设的通用规律（傅里叶归纳偏置）”的依赖程度')
     parser.add_argument('--alpha', type=float, default=0.3, help='alpha for BSARec ,用来在傅里叶变换后的频域中，区分什么是低频信号，什么是高频信号，低于C为低频信号，高于C为高频信息')
