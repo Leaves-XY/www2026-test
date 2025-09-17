@@ -1,6 +1,6 @@
 #Train
 early_stop_enabled: True  #早停
-early_stop: 10
+early_stop: 15
 eval_k: 10  #评估指标 HR@K NDCG@K
 
 # Path

@@ -13,7 +13,7 @@ def parse_args():
 
     parser.add_argument('--model',type = str,default ='SASRec' ,choices = ['SASRec','FMLP','BSARec'],help='选择推荐模型')
 
-    parser.add_argument ('--algorithm', type = str, default = 'base_Top_k',
+    parser.add_argument ('--algorithm', type = str, default = 'UDL_DDR_RESKD',
                          choices = ['base','UDL','UDL_DDR','UDL_RESKD','UDL_DDR_RESKD','RESKD_I','DDR','RESKD_DDR','RESKD','UDL',
                                     'base_Top_k','UDL_Top_k','UDL_DDR_Top_k','UDL_DDR_RESKD_Top_k','DDR_Top_k','RESKD_Top_k','UDL_RESKD_Top_k','DDR_RESKD_Top_k','RESKD_I_Top_k',
                                     ], help = '算法选择')
@@ -26,8 +26,8 @@ def parse_args():
     parser.add_argument('--hidden_size', type=int, default=64, help='hidden layer dimensionality.')
     parser.add_argument('--dropout', type=float, default=0.2, help='dropout rate (参考SAS.torch: 0.2)')
     parser.add_argument('--epochs', type=int, default=1000000, help='训练轮数 ')
-    parser.add_argument('--dataset', type=str, default='ml-100k', help='Dataset name')
-    parser.add_argument('--train_data', type=str, default='ml-100k.txt', help='train dataset')
+    parser.add_argument('--dataset', type=str, default='Steam', help='Dataset name')
+    parser.add_argument('--train_data', type=str, default='Steam.txt', help='train dataset')
     parser.add_argument('--num_layers', type=int, default=2, help='Transformer层数 (参考SAS.torch num_blocks: 2)')
     parser.add_argument('--num_heads', type=int, default=1, help='注意力头数量 (参考SAS.torch: 1)')
     parser.add_argument('--inner_size', type=int, default=256, help='前馈网络内部大小')

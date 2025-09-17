@@ -7,7 +7,7 @@ import sys
 # Available datasets: ['ml-100k', 'ml-1m', 'LastFM', 'Yelp','Toys_and_Games','Sports_and_Outdoors','Video','Steam','beauty']
 MODEL=['SASRec']
 
-DATASETS_TO_RUN =['ml-100k', 'ml-1m', 'LastFM', 'Yelp','Toys_and_Games','Sports_and_Outdoors','Video','Steam','beauty']
+DATASETS_TO_RUN =['ml-100k', 'ml-1m', 'LastFM']
 
 # List of algorithms to run.
 # These are derived from the filenames in the algorithm directories.

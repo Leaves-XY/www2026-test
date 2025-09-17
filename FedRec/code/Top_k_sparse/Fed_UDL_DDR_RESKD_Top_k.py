@@ -602,7 +602,7 @@ class Server:
             total_elements += len(indices)
         # 假设传输每个值(float32=4字节)和其对应的索引(int64=8字节)
         # 实际传输中索引可能会被压缩，但这里作为一种上界估计
-        total_size = total_elements * (4 + 8)
+        total_size = total_elements * 4
         return total_size / (1024 * 1024)  # 返回MB
 
     def train(self):
