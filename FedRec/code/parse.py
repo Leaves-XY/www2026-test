@@ -13,9 +13,9 @@ def parse_args():
 
     config = yaml.safe_load(open(config_path, 'r', encoding='utf-8'))
 
-    parser.add_argument('--model',type = str,default ='SASRec' ,choices = ['SASRec','FMLP','BSARec'],help='选择推荐模型')
+    parser.add_argument('--model',type = str,default ='BERT4Rec' ,choices = ['SASRec','FMLP','BSARec','BERT4Rec'],help='选择推荐模型')
 
-    parser.add_argument ('--algorithm', type = str, default = 'UDL_DDR_RESKD',
+    parser.add_argument ('--algorithm', type = str, default = 'base',
                          choices = ['base','UDL','UDL_DDR','UDL_RESKD','UDL_DDR_RESKD','RESKD_I','DDR','RESKD_DDR','RESKD','UDL',
                                     'base_Top_k','UDL_Top_k','UDL_DDR_Top_k','UDL_DDR_RESKD_Top_k','DDR_Top_k','RESKD_Top_k','UDL_RESKD_Top_k','DDR_RESKD_Top_k','RESKD_I_Top_k',
                                     ], help = '算法选择')
@@ -24,13 +24,13 @@ def parse_args():
 
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate (参考SAS.torch: 0.001)')
     parser.add_argument('--batch_size', type=int, default=128, help='Batch size (参考SAS.torch: 128)')
-    parser.add_argument('--l2_reg', type=float, default=0, help='L2 regularization coefficient')
-    parser.add_argument('--l2_emb', type=float, default=0.0, help='L2 regularization for embeddings (参考SAS.torch: 0.0)')
+    parser.add_argument('--l2_reg', type=float, default=1e-6, help='L2 regularization coefficient')
+    parser.add_argument('--l2_emb', type=float, default=1e-6, help='L2 regularization for embeddings (参考SAS.torch: 0.0)')
     parser.add_argument('--hidden_size', type=int, default=64, help='hidden layer dimensionality.')
     parser.add_argument('--dropout', type=float, default=0.2, help='dropout rate (参考SAS.torch: 0.2)')
     parser.add_argument('--epochs', type=int, default=1000000, help='训练轮数 ')
-    parser.add_argument('--dataset', type=str, default='Steam', help='Dataset name')
-    parser.add_argument('--train_data', type=str, default='Steam.txt', help='train dataset')
+    parser.add_argument('--dataset', type=str, default='ml-100k', help='Dataset name')
+    parser.add_argument('--train_data', type=str, default='ml-100k.txt', help='train dataset')
     parser.add_argument('--num_layers', type=int, default=2, help='Transformer层数 (参考SAS.torch num_blocks: 2)')
     parser.add_argument('--num_heads', type=int, default=1, help='注意力头数量 (参考SAS.torch: 1)')
     parser.add_argument('--inner_size', type=int, default=256, help='前馈网络内部大小')
@@ -45,7 +45,7 @@ def parse_args():
     parser.add_argument('--neg_num', type=int, default=99, help='负样本采样数量')
 
     # 测试集评估控制参数
-    parser.add_argument('--skip_test_eval', action='store_true', default=True,
+    parser.add_argument('--skip_test_eval', action = 'store_true', default=False,
                         help='跳过测试集评估以节省训练时间，只进行验证集评估')
 
     # 评估频率控制参数

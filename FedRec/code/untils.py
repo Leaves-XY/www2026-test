@@ -104,6 +104,9 @@ def getModel(config, item_maxid):
         return FMLPRec(config, item_maxid)
     elif config['model']=='BSARec':
         return BSARec(config, item_maxid)
+    elif config['model']=='BERT4Rec':
+        from model.BERT4Rec import BERT
+        return BERT(config, item_maxid)
     else:
         raise ValueError(f"Unknown model: {config['model']}")
 

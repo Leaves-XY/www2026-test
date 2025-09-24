@@ -7,11 +7,13 @@ import sys
 # Available datasets: ['ml-100k', 'ml-1m', 'LastFM', 'Yelp','Toys_and_Games','Sports_and_Outdoors','Video','Steam','beauty']
 MODEL=['SASRec']
 
-DATASETS_TO_RUN =['Video','beauty']
+DATASETS_TO_RUN =["Toys_and_Games"]
 
 # List of algorithms to run.
 # These are derived from the filenames in the algorithm directories.
-ALGORITHMS = ['base_Top_k','UDL_Top_k','UDL_DDR_Top_k','UDL_DDR_RESKD_Top_k']
+#['base','UDL','UDL_DDR','UDL_DDR_RESKD']
+#['base_Top_k','UDL_Top_k','UDL_DDR_Top_k','UDL_DDR_RESKD_Top_k']
+ALGORITHMS = ['base','UDL']
 
 def run_experiment():
     """
@@ -31,7 +33,9 @@ def run_experiment():
                     "--dataset", dataset,
                     "--train_data",dataset + ".txt",
                     "--early_stop",'9',
-                    "--lr",'0.001'
+                    "--lr",'0.0001',
+                    "--kd_lr",'0.0001',
+                    "--max_seq_len",'30',
                 ]
 
                 try:
