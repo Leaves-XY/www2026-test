@@ -233,7 +233,6 @@ class BERT(nn.Module):
                                        dropout=dropout)
         self.item_embedding = self.embedding.item_embedding
         self.position_embedding = self.embedding.position_embedding
-        self.position_embedding = self.embedding.position_embedding
 
         # multi-layers transformer blocks, deep network
         self.transformer_blocks = nn.ModuleList([
