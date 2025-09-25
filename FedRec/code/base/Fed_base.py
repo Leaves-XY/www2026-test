@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import time  # 添加time模块用于计时
-from FedRec.code.dataset import ClientsDataset, evaluate, evaluate_valid
+from FedRec.code.dataset import ClientsDataset, evaluate, evaluate_valid, evaluate_for_bert, evaluate_valid_for_bert
 from FedRec.code.metric import NDCG_binary_at_k_batch, AUC_at_k_batch, HR_at_k_batch
 from FedRec.code.untils import getModel
 
@@ -200,10 +200,31 @@ class Clients:
                 input_len = torch.clamp(input_len, max=max_seq_length)
 
             # 5. 使用尺寸正确的 client_model 进行训练
-            seq_out = client_model(input_seq, input_len)
-            padding_mask = (torch.not_equal(input_seq, 0)).float().unsqueeze(-1).to(self.device)
+            if self.config['model'] == 'BERT4Rec':
+                # --- BERT4Rec Data Generation: Masking ---
+                mask_prob = self.config['mask_prob']  # BERT4Rec的掩码概率
+                input_seq_numpy = input_seq.cpu().numpy().squeeze(0)
+                masked_seq_numpy = np.copy(input_seq_numpy)
+                labels = np.zeros_like(input_seq_numpy)
 
-            loss = client_model.loss_function(seq_out, padding_mask, target_seq, neg_seq, input_len)
+                candidate_indices = np.where(masked_seq_numpy > 0)[0]
+                num_to_mask = max(1, int(len(candidate_indices) * mask_prob))
+                masked_indices = np.random.choice(candidate_indices, num_to_mask, replace=False)
+
+                for index in masked_indices:
+                    labels[index] = masked_seq_numpy[index]
+                    masked_seq_numpy[index] = client_model.mask_token_id
+
+                masked_seq = torch.from_numpy(masked_seq_numpy).unsqueeze(0).to(self.device)
+                labels = torch.from_numpy(labels).unsqueeze(0).to(self.device)
+                
+                seq_out = client_model(masked_seq)
+                loss = client_model.loss_function(seq_out, labels)
+            else:
+                # 原有的 next-item prediction 逻辑
+                seq_out = client_model(input_seq, input_len)
+                padding_mask = (torch.not_equal(input_seq, 0)).float().unsqueeze(-1).to(self.device)
+                loss = client_model.loss_function(seq_out, padding_mask, target_seq, neg_seq, input_len)
 
             clients_losses[uid] = loss.item()
 
@@ -228,38 +249,36 @@ class Server:
     3. 维护全局模型并进行评估
     """
 
-    def __init__ ( self, config, clients, logger ):
+    def __init__(self, config, clients, logger):
         self.clients = clients
         self.config = config
-        self.batch_size = config ['batch_size']
-        self.epochs = config ['epochs']
-        self.early_stop = config ['early_stop']
-        self.maxlen = config ['max_seq_len']
-        self.skip_test_eval = config ['skip_test_eval']
-        self.eval_freq = config ['eval_freq']
-        self.early_stop_enabled = config ['early_stop_enabled']
-        self.device = "cuda" if torch.cuda.is_available () else "cpu"
+        self.batch_size = config['batch_size']
+        self.epochs = config['epochs']
+        self.early_stop = config['early_stop']
+        self.maxlen = config['max_seq_len']
+        self.skip_test_eval = config['skip_test_eval']
+        self.eval_freq = config['eval_freq']
+        self.early_stop_enabled = config['early_stop_enabled']
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.logger = logger
         self.dataset = self.clients.dataset
 
-
-
         # 获取异构设备维度配置
-        self.dim_s = config ['dim_s']
-        self.dim_m = config ['dim_m']
-        self.dim_l = config ['dim_l']
-        
+        self.dim_s = config['dim_s']
+        self.dim_m = config['dim_m']
+        self.dim_l = config['dim_l']
+
         # 获取评估k值配置
-        self.eval_k = config ['eval_k']
+        self.eval_k = config['eval_k']
 
         # 初始化模型 - 使用大型设备维度
-        config ['hidden_size'] = self.dim_l
-        self.model = getModel (config, self.clients.clients_data.get_maxid ())
-        self.model.to (self.device)
+        config['hidden_size'] = self.dim_l
+        self.model = getModel(config, self.clients.clients_data.get_maxid())
+        self.model.to(self.device)
 
         # 初始化优化器
-        self.optimizer = torch.optim.Adam (self.model.parameters (), lr = config ['lr'],
-                                           betas = (0.9, 0.98), weight_decay = config ['l2_reg'])
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=config['lr'],
+                                          betas=(0.9, 0.98), weight_decay=config['l2_reg'])
 
         # --- 通信开销计算模块初始化 ---
         self._init_comm_cost_calculation()
@@ -456,7 +475,10 @@ class Server:
                 print ('Evaluating', end = '')
 
 
-                t_valid = evaluate_valid(self.model, self.dataset, self.maxlen, self.clients.neg_num, self.eval_k, self.config['full_eval'],self.device)
+                if self.config['model'] == 'BERT4Rec':
+                    t_valid = evaluate_valid_for_bert(self.model, self.dataset, self.maxlen, self.clients.neg_num, self.eval_k, self.config['full_eval'],self.device)
+                else:
+                    t_valid = evaluate_valid(self.model, self.dataset, self.maxlen, self.clients.neg_num, self.eval_k, self.config['full_eval'],self.device)
 
                 # --- 通信开销计算: 日志记录 ---
                 down_mb = self.comm_costs['downlink'] / (1024**2)
@@ -491,7 +513,10 @@ class Server:
                 # 测试集评估（可选）- 也使用异构评估
                 if not self.skip_test_eval:
                     # 这里可以添加测试集的异构评估，暂时使用传统方法
-                    t_test = evaluate (self.model, self.dataset, self.maxlen, self.clients.neg_num, self.eval_k, self.config['full_eval'], self.device)
+                    if self.config['model'] == 'BERT4Rec':
+                        t_test = evaluate_for_bert(self.model, self.dataset, self.maxlen, self.clients.neg_num, self.eval_k, self.config['full_eval'], self.device)
+                    else:
+                        t_test = evaluate (self.model, self.dataset, self.maxlen, self.clients.neg_num, self.eval_k, self.config['full_eval'], self.device)
 
                     # 检查测试集评估结果是否异常
                     if t_test [0] > 1.0 or t_test [1] > 1.0 or np.isnan (t_test [0]) or np.isnan (t_test [1]):
@@ -549,10 +574,3 @@ class Server:
             self.logger.info ('[联邦训练] 最佳结果: valid NDCG@{}={:.4f}, HR@{}={:.4f} (测试集评估已跳过)'.format (
                 self.eval_k, best_val_ndcg, self.eval_k, best_val_hr))
 
-        # --- 通信开销计算: 最终总结 ---
-        down_mb = self.comm_costs['downlink'] / (1024**2)
-        up_mb = self.comm_costs['uplink'] / (1024**2)
-        total_mb = down_mb + up_mb
-        self.logger.info(f"COMMUNICATION COST - FINAL: "
-                         f"Total Downlink={down_mb:.3f}MB, Total Uplink={up_mb:.3f}MB, Total={total_mb:.3f}MB")
-        # ---

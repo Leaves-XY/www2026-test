@@ -1,4 +1,4 @@
-# --- START OF MODIFIED FILE BERT4Rec.py ---
+# --- START OF CORRECTED FILE BERT4Rec.py ---
 
 import math
 import torch
@@ -9,7 +9,6 @@ import torch.nn.functional as F
 class PositionalEmbedding(nn.Module):
     def __init__(self, max_len, d_model):
         super().__init__()
-        # Compute the positional encodings once in log space.
         self.pe = nn.Embedding(max_len, d_model)
 
     @property
@@ -27,23 +26,11 @@ class TokenEmbedding(nn.Embedding):
 
 
 class BERTEmbedding(nn.Module):
-    """
-    BERT Embedding which is consisted with under features
-        1. TokenEmbedding : normal embedding matrix
-        2. PositionalEmbedding : adding positional information using sin, cos
-        sum of all these features are output of BERTEmbedding
-    """
-
     def __init__(self,
                  vocab_size,
                  embed_size,
                  max_len,
                  dropout=0.1):
-        """
-        :param vocab_size: total vocab size
-        :param embed_size: embedding size of token embedding
-        :param dropout: dropout rate
-        """
         super().__init__()
         self.item_embedding = TokenEmbedding(vocab_size=vocab_size,
                                              embed_size=embed_size)
@@ -53,69 +40,45 @@ class BERTEmbedding(nn.Module):
         self.embed_size = embed_size
 
     def forward(self, sequence):
-        # MODIFIED: Removed genres embedding
         x = self.item_embedding(sequence) + self.position_embedding(sequence)
         return self.dropout(x)
 
 
 class Attention(nn.Module):
-    """
-    Compute 'Scaled Dot Product Attention
-    """
-
     def forward(self, query, key, value, mask=None, dropout=None):
         scores = torch.matmul(query, key.transpose(-2, -1)) \
                  / math.sqrt(query.size(-1))
-
         if mask is not None:
             scores = scores.masked_fill(mask == 0, -1e9)
-
         p_attn = F.softmax(scores, dim=-1)
-
         if dropout is not None:
             p_attn = dropout(p_attn)
-
         return torch.matmul(p_attn, value), p_attn
 
 
 class MultiHeadedAttention(nn.Module):
-    """
-    Take in model size and number of heads.
-    """
-
     def __init__(self, h, d_model, dropout=0.1):
         super().__init__()
         assert d_model % h == 0
-
-        # We assume d_v always equals d_k
         self.d_k = d_model // h
         self.h = h
-
         self.linear_layers = nn.ModuleList([nn.Linear(d_model, d_model)
                                             for _ in range(3)])
         self.output_linear = nn.Linear(d_model, d_model)
         self.attention = Attention()
-
         self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, query, key, value, mask=None):
         batch_size = query.size(0)
-
-        # 1) Do all the linear projections in batch from d_model => h x d_k
         query, key, value = [
             layer(x).view(batch_size, -1,
                           self.h, self.d_k).transpose(1, 2)
             for layer, x in zip(self.linear_layers, (query, key, value))
         ]
-
-        # 2) Apply attention on all the projected vectors in batch.
         x, attn = self.attention(query, key, value,
                                  mask=mask, dropout=self.dropout)
-
-        # 3) "Concat" using a view and apply a final linear.
         x = x.transpose(1, 2).contiguous().view(batch_size, -1,
                                                 self.h * self.d_k)
-
         return self.output_linear(x)
 
 
@@ -126,8 +89,6 @@ class GELU(nn.Module):
 
 
 class PositionwiseFeedForward(nn.Module):
-    "Implements FFN equation."
-
     def __init__(self, d_model, d_ff, dropout=0.1):
         super(PositionwiseFeedForward, self).__init__()
         self.w_1 = nn.Linear(d_model, d_ff)
@@ -140,8 +101,6 @@ class PositionwiseFeedForward(nn.Module):
 
 
 class LayerNorm(nn.Module):
-    "Construct a layernorm module (See citation for details)."
-
     def __init__(self, features, eps=1e-6):
         super(LayerNorm, self).__init__()
         self.a_2 = nn.Parameter(torch.ones(features))
@@ -155,47 +114,26 @@ class LayerNorm(nn.Module):
 
 
 class SublayerConnection(nn.Module):
-    """
-    A residual connection followed by a layer norm.
-    Note for code simplicity the norm is first as opposed to last.
-    """
-
     def __init__(self, size, dropout):
         super(SublayerConnection, self).__init__()
         self.norm = LayerNorm(size)
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x, sublayer):
-        "Apply residual connection to any sublayer with the same size."
         return x + self.dropout(sublayer(self.norm(x)))
 
 
 class TransformerBlock(nn.Module):
-    """
-    Bidirectional Encoder = Transformer (self-attention)
-    Transformer = MultiHead_Attention + Feed_Forward with sublayer connection
-    """
-
     def __init__(self, hidden, attn_heads, feed_forward_hidden, dropout):
-        """
-        :param hidden: hidden size of transformer
-        :param attn_heads: head sizes of multi-head attention
-        :param feed_forward_hidden: feed_forward_hidden, usually 4*hidden_size
-        :param dropout: dropout rate
-        """
-
         super().__init__()
         self.attention = MultiHeadedAttention(h=attn_heads,
                                               d_model=hidden,
                                               dropout=dropout)
-
         self.feed_forward = PositionwiseFeedForward(d_model=hidden,
                                                     d_ff=feed_forward_hidden,
                                                     dropout=dropout)
-
         self.input_sublayer = SublayerConnection(size=hidden,
                                                  dropout=dropout)
-
         self.output_sublayer = SublayerConnection(size=hidden,
                                                   dropout=dropout)
         self.dropout = nn.Dropout(p=dropout)
@@ -209,24 +147,23 @@ class TransformerBlock(nn.Module):
 
 
 class BERT(nn.Module):
-    # MODIFIED: Changed constructor signature to be compatible with the framework
     def __init__(self, config, item_maxid):
         super().__init__()
 
-        # Parse parameters from config dictionary
         max_len = config['max_seq_len']
         n_layers = config['num_layers']
         heads = config['num_heads']
         hidden = config['hidden_size']
         dropout = config['dropout']
 
-        # Set vocab_size based on item_maxid
         self.max_seq_length = max_len
-        self.vocab_size = item_maxid + 2  # +1 for padding, +1 for mask token (if any, good practice)
+        # CORRECTED: vocab_size = item_maxid + 1 (for items) + 1 (for padding 0) + 1 (for [MASK])
+        self.vocab_size = item_maxid + 2
+        # ADDED: Define mask token id. It's the last token in our vocabulary.
+        self.mask_token_id = item_maxid + 1
         self.hidden = hidden
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        # embedding for BERT, sum of positional, segment, token embeddings
         self.embedding = BERTEmbedding(vocab_size=self.vocab_size,
                                        embed_size=self.hidden,
                                        max_len=max_len,
@@ -234,114 +171,97 @@ class BERT(nn.Module):
         self.item_embedding = self.embedding.item_embedding
         self.position_embedding = self.embedding.position_embedding
 
-        # multi-layers transformer blocks, deep network
         self.transformer_blocks = nn.ModuleList([
             TransformerBlock(hidden, heads, hidden * 4, dropout)
             for _ in range(n_layers)
         ])
 
-        # MODIFIED: No separate output layer, will use weight tying with token embedding
-        # self.out = nn.Linear(hidden, num_items + 1)
+        # ADDED: Define loss function here, CrossEntropyLoss is standard for MIP
+        self.criterion = nn.CrossEntropyLoss(ignore_index=0)  # Ignore padding
         self.init_weights()
 
-    # MODIFIED: Changed forward signature to be compatible
-    def forward(self, x, x_lens=None):
-        # Attention mask for BERT is bidirectional, masking only padding tokens (0)
-        # The mask shape should be (batch_size, 1, 1, seq_len) for MultiHeadedAttention
+    def forward(self, x):  # Removed x_lens as it is not used
         mask = (x > 0).unsqueeze(1).unsqueeze(2)
-
-        # embedding the indexed sequence to sequence of vectors
-        # MODIFIED: Removed genres argument
         x = self.embedding(x)
-
-        # running over multiple transformer blocks
         for transformer in self.transformer_blocks:
             x = transformer.forward(x, mask)
-
-        # MODIFIED: Use weight tying for output layer
-        # This computes the dot product between transformer output and all item embeddings
         logits = torch.matmul(x, self.embedding.item_embedding.weight.transpose(0, 1))
-
         return logits
 
     def init_weights(self):
-        # Initialize parameters
         for name, param in self.named_parameters():
             if 'weight' in name and len(param.shape) > 1:
                 torch.nn.init.xavier_normal_(param.data)
             elif 'bias' in name:
                 param.data.zero_()
-        # Set embedding for padding_idx to zero
-        self.embedding.item_embedding.weight.data[0].fill_(0)
-        self.embedding.position_embedding.pe.weight.data[0].fill_(0)
+        self.item_embedding.weight.data[0].fill_(0)
+        self.position_embedding.pe.weight.data[0].fill_(0)
+        # It's also good practice to initialize the [MASK] embedding
+        mask_emb_init = torch.randn(self.hidden)
+        self.item_embedding.weight.data[self.mask_token_id] = mask_emb_init
 
-    # ADDED: loss_function method copied from SASRec for compatibility
-    def loss_function(self, seq_out, padding_mask, target, neg, seq_len):
-        # Extract target item (positive sample) scores
-        target_output = torch.gather(seq_out, 2, target.unsqueeze(-1).long())
-
-        # BPR-like loss with binary cross-entropy
-        if neg.dim() == 3:
-            # For multiple negative samples
-            neg_output = torch.gather(seq_out, 2, neg.long())
-            pos_loss = -torch.log(torch.sigmoid(target_output))
-            neg_loss = -torch.log(1 - torch.sigmoid(neg_output)).mean(dim=-1, keepdim=True)
-        else:
-            # For a single negative sample
-            neg_output = torch.gather(seq_out, 2, neg.unsqueeze(-1).long())
-            pos_loss = -torch.log(torch.sigmoid(target_output))
-            neg_loss = -torch.log(1 - torch.sigmoid(neg_output))
-
-        loss = pos_loss + neg_loss
-        loss = loss * padding_mask.unsqueeze(-1)
-
-        non_zero_elements = padding_mask.sum()
-        if non_zero_elements > 0:
-            loss = loss.sum() / non_zero_elements
-        else:
-            loss = loss.sum()
-
+    # CORRECTED: loss_function for Masked Item Prediction
+    def loss_function(self, seq_out, labels):
+        """
+        Calculates the loss for the Masked Item Prediction task.
+        :param seq_out: The output of the BERT model, shape: (batch_size, seq_len, vocab_size)
+        :param labels: The true item IDs for the masked positions, shape: (batch_size, seq_len)
+                       Non-masked positions should have an ignore_index (e.g., 0).
+        """
+        # Flatten the outputs and labels
+        # seq_out.view(-1, self.vocab_size) will have shape (batch_size * seq_len, vocab_size)
+        # labels.view(-1) will have shape (batch_size * seq_len)
+        loss = self.criterion(seq_out.view(-1, self.vocab_size), labels.view(-1).long())
         return loss
 
-    # ADDED: log2feats method, similar to SASRec, for prediction
     def log2feats(self, log_seqs):
-        """
-        Converts sequence to feature representation for prediction.
-        """
         if not isinstance(log_seqs, torch.Tensor):
             log_seqs = torch.LongTensor(log_seqs).to(self.device)
-
-        # Create attention mask
         mask = (log_seqs > 0).unsqueeze(1).unsqueeze(2)
-
-        # Get embeddings
         seqs = self.embedding(log_seqs)
-
-        # Pass through transformer blocks
         for transformer in self.transformer_blocks:
             seqs = transformer.forward(seqs, mask)
-
         return seqs
 
-    # ADDED: predict method for evaluation, adapted from SASRec
+    # CORRECTED: predict method for evaluation using [MASK] token
     def predict(self, user_ids, log_seqs, item_indices):
         """
-        Predict scores for candidate items during evaluation.
+        Predict scores by appending a [MASK] token to the end of the sequence.
+        Handles the case where the sequence is full.
         """
-        log_feats = self.log2feats(log_seqs)
+        if not isinstance(log_seqs, torch.Tensor):
+            log_seqs = torch.from_numpy(log_seqs).type(torch.long)
+        log_seqs = log_seqs.to(self.device)
 
-        # Use the representation of the last item in the sequence
-        final_feat = log_feats[:, -1, :]
+        # Calculate the actual length of each sequence in the batch
+        seq_len = torch.sum(log_seqs != 0, dim=1)
+
+        # Create a new sequence tensor for prediction
+        pred_seqs = torch.zeros_like(log_seqs)
+        pred_seqs.copy_(log_seqs)
+
+        # For sequences that are full, we need to make space for the [MASK] token.
+        # We shift the sequence to the left by one, discarding the oldest item.
+        full_seq_mask = (seq_len >= self.max_seq_length)
+        if torch.any(full_seq_mask):
+            pred_seqs[full_seq_mask, :-1] = log_seqs[full_seq_mask, 1:]
+
+        # The index where we'll place the [MASK] token.
+        # For full sequences, it's the last index (maxlen-1).
+        # For others, it's the index right after the last real item.
+        mask_indices = torch.clamp(seq_len, max=self.max_seq_length - 1)
+
+        # Place the [MASK] token at the correct position for each sequence
+        pred_seqs[torch.arange(log_seqs.size(0)), mask_indices] = self.mask_token_id
+
+        # Get the feature representation for the prediction sequence
+        log_feats = self.log2feats(pred_seqs)
+
+        # The final feature is the one at the position of the [MASK] token
+        final_feat = log_feats[torch.arange(log_seqs.size(0)), mask_indices]
 
         if not isinstance(item_indices, torch.Tensor):
             item_indices = torch.LongTensor(item_indices).to(self.device)
-
-        # Get embeddings of candidate items
-        item_embs = self.embedding.item_embedding(item_indices)
-
-        # Compute dot product scores
+        item_embs = self.item_embedding(item_indices)
         logits = item_embs.matmul(final_feat.unsqueeze(-1)).squeeze(-1)
-
         return logits
-
-# --- END OF MODIFIED FILE BERT4Rec.py ---

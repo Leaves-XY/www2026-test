@@ -3,7 +3,7 @@ import torch
 import time  # 添加time模块用于计时
 from torch.utils.data import DataLoader
 
-from FedRec.code.dataset import ClientsDataset, evaluate, evaluate_valid
+from FedRec.code.dataset import ClientsDataset, evaluate, evaluate_valid, evaluate_for_bert, evaluate_valid_for_bert
 from FedRec.code.metric import NDCG_binary_at_k_batch, AUC_at_k_batch, HR_at_k_batch
 from FedRec.code.untils import getModel
 import copy
@@ -252,25 +252,55 @@ class Clients:
                 input_len = torch.clamp(input_len, max=max_seq_length)
 
             # 5. 使用尺寸正确的 client_model 进行训练
-            seq_out = client_model(input_seq, input_len)
-            padding_mask = (torch.not_equal(input_seq, 0)).float().unsqueeze(-1).to(self.device)
+            if self.config['model'] == 'BERT4Rec':
+                # --- BERT4Rec Data Generation: Masking ---
+                mask_prob = self.config['mask_prob']
+                input_seq_numpy = input_seq.cpu().numpy().squeeze(0)
+                masked_seq_numpy = np.copy(input_seq_numpy)
+                labels = np.zeros_like(input_seq_numpy)
 
-            # 计算损失
-            # 根据设备类型选择损失函数
-            if dev_type == 's':
+                candidate_indices = np.where(masked_seq_numpy > 0)[0]
+                num_to_mask = max(1, int(len(candidate_indices) * mask_prob))
+                masked_indices = np.random.choice(candidate_indices, num_to_mask, replace=False)
 
-                loss = self.model_s.loss_function(seq_out, padding_mask, target_seq, neg_seq, input_len)
-            elif dev_type == 'm':
+                for index in masked_indices:
+                    labels[index] = masked_seq_numpy[index]
+                    masked_seq_numpy[index] = client_model.mask_token_id
 
-                loss_s=self.model_s.loss_function(seq_out, padding_mask, target_seq, neg_seq, input_len)
-                loss_m=self.model_m.loss_function(seq_out, padding_mask, target_seq, neg_seq, input_len)
-                loss = loss_s + loss_m
-            else:  # 'l'
+                masked_seq = torch.from_numpy(masked_seq_numpy).unsqueeze(0).to(self.device)
+                labels = torch.from_numpy(labels).unsqueeze(0).to(self.device)
 
-                loss_s=self.model_s.loss_function(seq_out, padding_mask, target_seq, neg_seq, input_len)
-                loss_m=self.model_m.loss_function(seq_out, padding_mask, target_seq, neg_seq, input_len)
-                loss_l=self.model_l.loss_function(seq_out, padding_mask, target_seq, neg_seq, input_len)
-                loss = loss_s + loss_m + loss_l
+                seq_out = client_model(masked_seq)
+
+                # 计算损失 - 保持UDL结构
+                if dev_type == 's':
+                    loss = self.model_s.loss_function(seq_out, labels)
+                elif dev_type == 'm':
+                    loss_s = self.model_s.loss_function(seq_out, labels)
+                    loss_m = self.model_m.loss_function(seq_out, labels)
+                    loss = loss_s + loss_m
+                else:  # 'l'
+                    loss_s = self.model_s.loss_function(seq_out, labels)
+                    loss_m = self.model_m.loss_function(seq_out, labels)
+                    loss_l = self.model_l.loss_function(seq_out, labels)
+                    loss = loss_s + loss_m + loss_l
+            else:
+                # 原有的 next-item prediction 逻辑
+                seq_out = client_model(input_seq, input_len)
+                padding_mask = (torch.not_equal(input_seq, 0)).float().unsqueeze(-1).to(self.device)
+
+                # 根据设备类型选择损失函数
+                if dev_type == 's':
+                    loss = self.model_s.loss_function(seq_out, padding_mask, target_seq, neg_seq, input_len)
+                elif dev_type == 'm':
+                    loss_s = self.model_s.loss_function(seq_out, padding_mask, target_seq, neg_seq, input_len)
+                    loss_m = self.model_m.loss_function(seq_out, padding_mask, target_seq, neg_seq, input_len)
+                    loss = loss_s + loss_m
+                else:  # 'l'
+                    loss_s = self.model_s.loss_function(seq_out, padding_mask, target_seq, neg_seq, input_len)
+                    loss_m = self.model_m.loss_function(seq_out, padding_mask, target_seq, neg_seq, input_len)
+                    loss_l = self.model_l.loss_function(seq_out, padding_mask, target_seq, neg_seq, input_len)
+                    loss = loss_s + loss_m + loss_l
 
             # 保存损失值
             clients_losses[uid] = loss.item()
@@ -452,7 +482,10 @@ class Server:
                 T += t1
                 print('Evaluating', end='')
 
-                t_valid = evaluate_valid(self.model, self.dataset, self.maxlen, self.clients.neg_num, self.eval_k, self.config['full_eval'],self.device)
+                if self.config['model'] == 'BERT4Rec':
+                    t_valid = evaluate_valid_for_bert(self.model, self.dataset, self.maxlen, self.clients.neg_num, self.eval_k, self.config['full_eval'],self.device)
+                else:
+                    t_valid = evaluate_valid(self.model, self.dataset, self.maxlen, self.clients.neg_num, self.eval_k, self.config['full_eval'],self.device)
                 self.logger.info(
                     f"传统评估结果 - Epoch {epoch + 1}: NDCG@{self.eval_k}={t_valid[0]:.4f}, HR@{self.eval_k}={t_valid[1]:.4f}")
 
@@ -478,7 +511,10 @@ class Server:
                 # 测试集评估（可选）- 也使用异构评估
                 if not self.skip_test_eval:
                     # 这里可以添加测试集的异构评估，暂时使用传统方法
-                    t_test = evaluate(self.model, self.dataset, self.maxlen, self.clients.neg_num, self.eval_k, self.config['full_eval'],self.device)
+                    if self.config['model'] == 'BERT4Rec':
+                        t_test = evaluate_for_bert(self.model, self.dataset, self.maxlen, self.clients.neg_num, self.eval_k, self.config['full_eval'],self.device)
+                    else:
+                        t_test = evaluate(self.model, self.dataset, self.maxlen, self.clients.neg_num, self.eval_k, self.config['full_eval'],self.device)
 
                     # 检查测试集评估结果是否异常
                     if t_test[0] > 1.0 or t_test[1] > 1.0 or np.isnan(t_test[0]) or np.isnan(t_test[1]):

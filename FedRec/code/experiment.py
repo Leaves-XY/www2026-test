@@ -33,8 +33,8 @@ def run_experiment():
                     "--dataset", dataset,
                     "--train_data",dataset + ".txt",
                     "--early_stop",'9',
-                    "--lr",'0.0001',
-                    "--kd_lr",'0.0001',
+                    "--lr",'0.001',
+                    "--kd_lr",'0.001',
                     "--max_seq_len",'200',
                 ]
 

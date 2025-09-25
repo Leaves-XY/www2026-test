@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import time  # 添加time模块用于计时
 
-from FedRec.code.dataset import ClientsDataset, evaluate, evaluate_valid
+from FedRec.code.dataset import ClientsDataset, evaluate, evaluate_valid, evaluate_for_bert, evaluate_valid_for_bert
 from FedRec.code.metric import NDCG_binary_at_k_batch, AUC_at_k_batch, HR_at_k_batch
 from FedRec.code.untils import getModel,FedDecorrLoss
 
@@ -252,37 +252,61 @@ class Clients:
                 input_len = torch.clamp(input_len, max=max_seq_length)
 
             # 5. 使用尺寸正确的 client_model 进行训练
-            seq_out = client_model(input_seq, input_len)
-            padding_mask = (torch.not_equal(input_seq, 0)).float().unsqueeze(-1).to(self.device)
+            if self.config['model'] == 'BERT4Rec':
+                # --- BERT4Rec Data Generation: Masking ---
+                mask_prob = self.config['mask_prob']
+                input_seq_numpy = input_seq.cpu().numpy().squeeze(0)
+                masked_seq_numpy = np.copy(input_seq_numpy)
+                labels = np.zeros_like(input_seq_numpy)
 
-            feddecorr = FedDecorrLoss ()
+                candidate_indices = np.where(masked_seq_numpy > 0)[0]
+                num_to_mask = max(1, int(len(candidate_indices) * mask_prob))
+                masked_indices = np.random.choice(candidate_indices, num_to_mask, replace=False)
 
-            # 计算损失
-            # 根据设备类型选择损失函数
-            if dev_type == 's':
-                # 小型设备：只计算小型模型损失（使用完整用户特征）
-                loss = self.model_s.loss_function(seq_out, padding_mask, target_seq, neg_seq, input_len)
-            elif dev_type == 'm':
-                # 中型设备：
-                # 1. 计算小型模型部分损失（使用小型特征子集 Ns）
-                loss_s = self.model_s.loss_function (seq_out, padding_mask, target_seq, neg_seq, input_len)
-                # 2. 计算中型模型整体损失（使用完整用户特征）
-                loss_m = self.model_m.loss_function (seq_out, padding_mask, target_seq, neg_seq, input_len)
-                # 添加正则化损失（仅对高维部分）
-                loss_reg = feddecorr(client_model.item_embedding.weight[:, self.dim_s:])
-                loss = loss_s + loss_m + alpha * loss_reg
-            else:  # 'l'
-                # 大型设备：
-                # 1. 计算小型模型部分损失（使用小型特征子集 Ns）
-                loss_s = self.model_s.loss_function (seq_out, padding_mask, target_seq, neg_seq, input_len)
-                # 2. 计算中型模型整体损失（使用完整用户特征）
-                loss_m = self.model_m.loss_function (seq_out, padding_mask, target_seq, neg_seq, input_len)
-                # 3. 计算大型模型整体损失（使用完整用户特征）
-                loss_l = self.model_l.loss_function (seq_out, padding_mask, target_seq, neg_seq, input_len)
-                # 添加正则化损失（仅对高维部分）
+                for index in masked_indices:
+                    labels[index] = masked_seq_numpy[index]
+                    masked_seq_numpy[index] = client_model.mask_token_id
 
-                loss_reg = feddecorr (client_model.item_embedding.weight [:, self.dim_s:])
-                loss =loss_l + loss_s + loss_m + alpha * loss_reg
+                masked_seq = torch.from_numpy(masked_seq_numpy).unsqueeze(0).to(self.device)
+                labels = torch.from_numpy(labels).unsqueeze(0).to(self.device)
+
+                seq_out = client_model(masked_seq)
+                feddecorr = FedDecorrLoss()
+
+                # 计算损失 - 保持UDL-DDR结构
+                if dev_type == 's':
+                    loss = self.model_s.loss_function(seq_out, labels)
+                elif dev_type == 'm':
+                    loss_s = self.model_s.loss_function(seq_out, labels)
+                    loss_m = self.model_m.loss_function(seq_out, labels)
+                    loss_reg = feddecorr(client_model.item_embedding.weight[:, self.dim_s:])
+                    loss = loss_s + loss_m + alpha * loss_reg
+                else:  # 'l'
+                    loss_s = self.model_s.loss_function(seq_out, labels)
+                    loss_m = self.model_m.loss_function(seq_out, labels)
+                    loss_l = self.model_l.loss_function(seq_out, labels)
+                    loss_reg = feddecorr(client_model.item_embedding.weight[:, self.dim_s:])
+                    loss = loss_l + loss_s + loss_m + alpha * loss_reg
+            else:
+                # 原有的 next-item prediction 逻辑
+                seq_out = client_model(input_seq, input_len)
+                padding_mask = (torch.not_equal(input_seq, 0)).float().unsqueeze(-1).to(self.device)
+                feddecorr = FedDecorrLoss()
+
+                # 根据设备类型选择损失函数
+                if dev_type == 's':
+                    loss = self.model_s.loss_function(seq_out, padding_mask, target_seq, neg_seq, input_len)
+                elif dev_type == 'm':
+                    loss_s = self.model_s.loss_function(seq_out, padding_mask, target_seq, neg_seq, input_len)
+                    loss_m = self.model_m.loss_function(seq_out, padding_mask, target_seq, neg_seq, input_len)
+                    loss_reg = feddecorr(client_model.item_embedding.weight[:, self.dim_s:])
+                    loss = loss_s + loss_m + alpha * loss_reg
+                else:  # 'l'
+                    loss_s = self.model_s.loss_function(seq_out, padding_mask, target_seq, neg_seq, input_len)
+                    loss_m = self.model_m.loss_function(seq_out, padding_mask, target_seq, neg_seq, input_len)
+                    loss_l = self.model_l.loss_function(seq_out, padding_mask, target_seq, neg_seq, input_len)
+                    loss_reg = feddecorr(client_model.item_embedding.weight[:, self.dim_s:])
+                    loss = loss_l + loss_s + loss_m + alpha * loss_reg
 
 
             # 保存损失值
@@ -466,11 +490,18 @@ class Server:
                 print('Evaluating', end='')
 
                 # --- 评估 ---
-                t_valid = evaluate_valid(self.model, self.dataset, self.maxlen, self.clients.neg_num, self.eval_k, self.config['full_eval'], self.device)
-                if not self.skip_test_eval:
-                    t_test = evaluate(self.model, self.dataset, self.maxlen, self.clients.neg_num, self.eval_k, self.config['full_eval'], self.device)
+                if self.config['model'] == 'BERT4Rec':
+                    t_valid = evaluate_valid_for_bert(self.model, self.dataset, self.maxlen, self.clients.neg_num, self.eval_k, self.config['full_eval'], self.device)
+                    if not self.skip_test_eval:
+                        t_test = evaluate_for_bert(self.model, self.dataset, self.maxlen, self.clients.neg_num, self.eval_k, self.config['full_eval'], self.device)
+                    else:
+                        t_test = (0.0, 0.0)
                 else:
-                    t_test = (0.0, 0.0)  # 如果跳过测试，则使用默认值
+                    t_valid = evaluate_valid(self.model, self.dataset, self.maxlen, self.clients.neg_num, self.eval_k, self.config['full_eval'], self.device)
+                    if not self.skip_test_eval:
+                        t_test = evaluate(self.model, self.dataset, self.maxlen, self.clients.neg_num, self.eval_k, self.config['full_eval'], self.device)
+                    else:
+                        t_test = (0.0, 0.0)  # 如果跳过测试，则使用默认值
 
                 # --- 检查异常评估结果 ---
                 if t_valid[0] > 1.0 or t_valid[1] > 1.0 or np.isnan(t_valid[0]) or np.isnan(t_valid[1]):

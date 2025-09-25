@@ -454,7 +454,6 @@ class SASRec (nn.Module):
     def loss_function ( self, seq_out, padding_mask, target, neg, seq_len ):
         """
         计算模型的损失函数，使用二元交叉熵(Binary Cross Entropy)损失
-        (已删除TOP1损失功能，简化实现)
 
         参数:
         - seq_out: 模型的输出得分。

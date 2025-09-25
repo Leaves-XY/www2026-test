@@ -211,6 +211,7 @@ class ClientsDataset (Dataset):
         return [self.user_train, self.user_valid, self.user_test, self.usernum, self.itemnum]
 
 
+
 def evaluate(model, dataset, maxlen, neg_num, k, full_eval=False, device='cuda'):
     [train, valid, test, usernum, itemnum] = copy.deepcopy(dataset)
 
@@ -325,3 +326,118 @@ def evaluate_valid(model, dataset, maxlen, neg_num, k, full_eval=False,device='c
 
     return NDCG / valid_user, HT / valid_user
 
+
+def evaluate_for_bert(model, dataset, maxlen, neg_num, k, full_eval=False, device='cuda'):
+    [train, valid, test, usernum, itemnum] = copy.deepcopy(dataset)
+
+    NDCG, HT, valid_user = 0.0, 0.0, 0
+    users = range(1, usernum + 1) if usernum <= 10000 else random.sample(range(1, usernum + 1), 10000)
+
+    for u in users:
+        if len(train[u]) < 1 or len(test[u]) < 1:
+            continue
+
+        # CORRECTED: Sequence for prediction should contain the user's FULL history
+        # (training items + validation item)
+        seq = np.zeros([maxlen], dtype=np.int32)
+        idx = maxlen - 1
+
+        # Add the validation item to the history first
+        if valid[u]:
+            seq[idx] = valid[u][0]
+            idx -= 1
+
+        # Add training items
+        for i in reversed(train[u]):
+            if idx == -1: break
+            seq[idx] = i
+            idx -= 1
+
+        rated = set(train[u]) | set(valid[u])
+        rated.add(0)
+
+        ground_truth_item = test[u][0]
+
+        if full_eval:
+            item_idx = [ground_truth_item] + [i for i in range(1, itemnum + 1) if i not in rated]
+        else:
+            item_idx = [ground_truth_item]
+            for _ in range(neg_num):
+                t = np.random.randint(1, itemnum + 1)
+                while t in rated:
+                    t = np.random.randint(1, itemnum + 1)
+                item_idx.append(t)
+
+        predictions = -model.predict(*[np.array(l) for l in [[u], [seq], item_idx]])
+
+        # ROBUST FIX: Ensure predictions is a 1D tensor before ranking.
+        # .squeeze() removes dimensions of size 1, e.g., (1, 1081) -> (1081,)
+        predictions = predictions.squeeze()
+
+        rank = predictions.argsort().argsort()[0].item()
+
+        valid_user += 1
+        if rank < k:
+            NDCG += 1 / np.log2(rank + 2)
+            HT += 1
+        if valid_user % 100 == 0:
+            print('.', end="")
+            sys.stdout.flush()
+
+    # Avoid division by zero if no valid users were found
+    return (NDCG / valid_user, HT / valid_user) if valid_user > 0 else (0.0, 0.0)
+
+
+def evaluate_valid_for_bert(model, dataset, maxlen, neg_num, k, full_eval=False, device='cuda'):
+    [train, valid, _, usernum, itemnum] = copy.deepcopy(dataset)
+
+    NDCG = 0.0
+    valid_user = 0.0
+    HT = 0.0
+    users = range(1, usernum + 1) if usernum <= 10000 else random.sample(range(1, usernum + 1), 10000)
+
+    for u in users:
+        if len(train[u]) < 1 or len(valid[u]) < 1:
+            continue
+
+        # CORRECTED: The sequence for prediction should ONLY contain the training history.
+        seq = np.zeros([maxlen], dtype=np.int32)
+        idx = maxlen - 1
+        for i in reversed(train[u]):
+            if idx == -1: break
+            seq[idx] = i
+            idx -= 1
+
+        rated = set(train[u])
+        rated.add(0)
+
+        ground_truth_item = valid[u][0]
+
+        if full_eval:
+            item_idx = [ground_truth_item] + [i for i in range(1, itemnum + 1) if i not in rated]
+        else:
+            item_idx = [ground_truth_item]
+            for _ in range(neg_num):
+                t = np.random.randint(1, itemnum + 1)
+                while t in rated:
+                    t = np.random.randint(1, itemnum + 1)
+                item_idx.append(t)
+
+        predictions = -model.predict(*[np.array(l) for l in [[u], [seq], item_idx]])
+
+        # ROBUST FIX: Ensure predictions is a 1D tensor before ranking.
+        # .squeeze() removes dimensions of size 1, e.g., (1, 1081) -> (1081,)
+        predictions = predictions.squeeze()
+
+        rank = predictions.argsort().argsort()[0].item()
+
+        valid_user += 1
+        if rank < k:
+            NDCG += 1 / np.log2(rank + 2)
+            HT += 1
+        if valid_user % 100 == 0:
+            print('.', end="")
+            sys.stdout.flush()
+
+    # Avoid division by zero if no valid users were found
+    return (NDCG / valid_user, HT / valid_user) if valid_user > 0 else (0.0, 0.0)

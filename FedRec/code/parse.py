@@ -15,7 +15,7 @@ def parse_args():
 
     parser.add_argument('--model',type = str,default ='BERT4Rec' ,choices = ['SASRec','FMLP','BSARec','BERT4Rec'],help='选择推荐模型')
 
-    parser.add_argument ('--algorithm', type = str, default = 'base',
+    parser.add_argument ('--algorithm', type = str, default = 'UDL_DDR_RESKD',
                          choices = ['base','UDL','UDL_DDR','UDL_RESKD','UDL_DDR_RESKD','RESKD_I','DDR','RESKD_DDR','RESKD','UDL',
                                     'base_Top_k','UDL_Top_k','UDL_DDR_Top_k','UDL_DDR_RESKD_Top_k','DDR_Top_k','RESKD_Top_k','UDL_RESKD_Top_k','DDR_RESKD_Top_k','RESKD_I_Top_k',
                                     ], help = '算法选择')
@@ -59,6 +59,9 @@ def parse_args():
 
     parser.add_argument('--c', type=int, default=9, help='c for BSARec ,用来平衡模型对“从数据中学到的复杂模式（自注意力）”和“预设的通用规律（傅里叶归纳偏置）”的依赖程度')
     parser.add_argument('--alpha', type=float, default=0.3, help='alpha for BSARec ,用来在傅里叶变换后的频域中，区分什么是低频信号，什么是高频信号，低于C为低频信号，高于C为高频信息')
+
+    #mask_prob
+    parser.add_argument('--mask_prob', type=float, default=0.15, help='BERT4Rec中mask的概率')
 
     # --- 知识蒸馏配置 ---
     parser.add_argument ('--kd_ratio', type = float, default = 0.1,  help = '蒸馏物品采样比例')
