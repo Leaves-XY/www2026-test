@@ -506,7 +506,7 @@ class Server:
                 # --- 检查异常评估结果 ---
                 if t_valid[0] > 1.0 or t_valid[1] > 1.0 or np.isnan(t_valid[0]) or np.isnan(t_valid[1]):
                     self.logger.warning(f"检测到异常验证结果: NDCG@{self.eval_k}={t_valid[0]:.4f}, HR@{self.eval_k}={t_valid[1]:.4f}")
-                if not self.skip_test_eval and (t_test[0] > 1.0 or t_test[1] > 1.0 or np.isnan(t_test[0]) or np.isnan(t_test[1])):
+                if not self.skip_test_eval and (t_test[0] >= 0.99 or t_test[1] >= 0.99 or np.isnan(t_test[0]) or np.isnan(t_test[1])):
                     self.logger.warning(f"检测到异常测试结果: NDCG@{self.eval_k}={t_test[0]:.4f}, HR@{self.eval_k}={t_test[1]:.4f}")
 
                 # --- 日志记录当前轮次性能 ---

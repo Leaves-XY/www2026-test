@@ -539,7 +539,7 @@ class Server:
                                       self.config['full_eval'], self.device)
 
                     # 检查测试集评估结果是否异常
-                    if t_test[0] > 1.0 or t_test[1] > 1.0 or np.isnan(t_test[0]) or np.isnan(t_test[1]):
+                    if t_test[0] >= 0.99 or t_test[1] >= 0.99 or np.isnan(t_test[0]) or np.isnan(t_test[1]):
                         self.logger.info(
                             f"检测到异常测试结果: NDCG@{self.eval_k}={t_test[0]:.4f}, HR@{self.eval_k}={t_test[1]:.4f}")
 
