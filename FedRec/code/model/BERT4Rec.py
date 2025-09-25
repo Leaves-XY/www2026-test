@@ -12,6 +12,10 @@ class PositionalEmbedding(nn.Module):
         # Compute the positional encodings once in log space.
         self.pe = nn.Embedding(max_len, d_model)
 
+    @property
+    def weight(self):
+        return self.pe.weight
+
     def forward(self, x):
         batch_size = x.size(0)
         return self.pe.weight.unsqueeze(0).repeat(batch_size, 1, 1)
@@ -41,16 +45,16 @@ class BERTEmbedding(nn.Module):
         :param dropout: dropout rate
         """
         super().__init__()
-        self.token = TokenEmbedding(vocab_size=vocab_size,
-                                    embed_size=embed_size)
-        self.position = PositionalEmbedding(max_len=max_len,
-                                            d_model=embed_size)
+        self.item_embedding = TokenEmbedding(vocab_size=vocab_size,
+                                             embed_size=embed_size)
+        self.position_embedding = PositionalEmbedding(max_len=max_len,
+                                                      d_model=embed_size)
         self.dropout = nn.Dropout(p=dropout)
         self.embed_size = embed_size
 
     def forward(self, sequence):
         # MODIFIED: Removed genres embedding
-        x = self.token(sequence) + self.position(sequence)
+        x = self.item_embedding(sequence) + self.position_embedding(sequence)
         return self.dropout(x)
 
 
@@ -227,6 +231,9 @@ class BERT(nn.Module):
                                        embed_size=self.hidden,
                                        max_len=max_len,
                                        dropout=dropout)
+        self.item_embedding = self.embedding.item_embedding
+        self.position_embedding = self.embedding.position_embedding
+        self.position_embedding = self.embedding.position_embedding
 
         # multi-layers transformer blocks, deep network
         self.transformer_blocks = nn.ModuleList([
@@ -254,7 +261,7 @@ class BERT(nn.Module):
 
         # MODIFIED: Use weight tying for output layer
         # This computes the dot product between transformer output and all item embeddings
-        logits = torch.matmul(x, self.embedding.token.weight.transpose(0, 1))
+        logits = torch.matmul(x, self.embedding.item_embedding.weight.transpose(0, 1))
 
         return logits
 
@@ -266,8 +273,8 @@ class BERT(nn.Module):
             elif 'bias' in name:
                 param.data.zero_()
         # Set embedding for padding_idx to zero
-        self.embedding.token.weight.data[0].fill_(0)
-        self.embedding.position.pe.weight.data[0].fill_(0)
+        self.embedding.item_embedding.weight.data[0].fill_(0)
+        self.embedding.position_embedding.pe.weight.data[0].fill_(0)
 
     # ADDED: loss_function method copied from SASRec for compatibility
     def loss_function(self, seq_out, padding_mask, target, neg, seq_len):
@@ -331,7 +338,7 @@ class BERT(nn.Module):
             item_indices = torch.LongTensor(item_indices).to(self.device)
 
         # Get embeddings of candidate items
-        item_embs = self.embedding.token(item_indices)
+        item_embs = self.embedding.item_embedding(item_indices)
 
         # Compute dot product scores
         logits = item_embs.matmul(final_feat.unsqueeze(-1)).squeeze(-1)
