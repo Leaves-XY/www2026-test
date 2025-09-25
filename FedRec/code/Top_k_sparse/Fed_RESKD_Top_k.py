@@ -668,7 +668,7 @@ class Server:
                                      f"压缩比例={compression_ratio:.2%}")
 
                 # 检查评估结果是否异常
-                if t_valid[0] > 1.0 or t_valid[1] > 1.0 or np.isnan(t_valid[0]) or np.isnan(t_valid[1]):
+                if t_valid[0] >= 0.99 or t_valid[1] >= 0.99 or np.isnan(t_valid[0]) or np.isnan(t_valid[1]):
                     self.logger.info(
                         f"检测到异常评估结果: NDCG@{self.eval_k}={t_valid[0]:.4f}, HR@{self.eval_k}={t_valid[1]:.4f}")
 
