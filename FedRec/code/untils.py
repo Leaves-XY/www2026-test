@@ -12,6 +12,14 @@ from torch import nn
 import torch
 from torch.utils.data import Dataset, DataLoader
 
+def add_noise(weights, lambd):
+    with torch.no_grad():
+        for k in weights.keys():
+            noise = torch.distributions.laplace.Laplace(0, lambd).sample(weights[k].shape)
+            weights[k] += noise.to(weights[k].device)
+    return weights
+
+
 
 def ensure_dir ( path ):
     """

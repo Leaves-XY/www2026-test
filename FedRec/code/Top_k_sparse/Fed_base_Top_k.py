@@ -3,7 +3,7 @@ import torch
 import time
 from ..dataset import ClientsDataset, evaluate, evaluate_valid
 from ..metric import NDCG_binary_at_k_batch, AUC_at_k_batch, HR_at_k_batch
-from ..untils import getModel
+from ..untils import getModel,add_noise
 
 
 class Clients:
@@ -270,6 +270,9 @@ class Clients:
             # 收集所有梯度
             gradients = {name: param.grad.clone() for name, param in client_model.named_parameters() if
                          param.grad is not None}
+
+            if self.config['LDP_lambda'] > 0:
+                gradients = add_noise(gradients, self.config['LDP_lambda'])
 
             # 应用Top-k选择
             compressed_gradients, gradient_indices = self.apply_top_k_selection(gradients)

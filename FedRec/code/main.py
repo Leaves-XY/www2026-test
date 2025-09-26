@@ -33,35 +33,35 @@ if __name__ == '__main__':
     elif algorithm == 'UDL_Top_k':
         from FedRec.code.Top_k_sparse.Fed_UDL_Top_k import Clients, Server
     elif algorithm == 'UDL_RESKD_Top_k':
-        from FedRec.code.Top_k_sparse.Fed_UDL_RESKD_Top_k import Clients, Server
+        from FedRec.code.Top_k_sparse.component.Fed_UDL_RESKD_Top_k import Clients, Server
     elif algorithm == 'DDR_RESKD_Top_k':
-        from FedRec.code.Top_k_sparse.Fed_DDR_RESKD_Top_k import Clients, Server
+        from FedRec.code.Top_k_sparse.component.Fed_DDR_RESKD_Top_k import Clients, Server
     elif algorithm == 'UDL_DDR_Top_k':
         from FedRec.code.Top_k_sparse.Fed_UDL_DDR_Top_k import Clients, Server
     elif algorithm == 'UDL_DDR_RESKD_Top_k':
         from FedRec.code.Top_k_sparse.Fed_UDL_DDR_RESKD_Top_k import Clients, Server
     elif algorithm == 'DDR_Top_k':
-        from FedRec.code.Top_k_sparse.Fed_DDR_Top_k import Clients, Server
+        from FedRec.code.Top_k_sparse.component.Fed_DDR_Top_k import Clients, Server
     elif algorithm == 'RESKD_Top_k':
-        from FedRec.code.Top_k_sparse.Fed_RESKD_Top_k import Clients, Server
+        from FedRec.code.Top_k_sparse.component.Fed_RESKD_Top_k import Clients, Server
     elif algorithm == 'RESKD_I_Top_k':
-        from FedRec.code.Top_k_sparse.Fed_RESKD_I_Top_k import Clients, Server
+        from FedRec.code.Top_k_sparse.component.Fed_RESKD_I_Top_k import Clients, Server
     elif algorithm=='base':
         from FedRec.code.base.Fed_base import Clients, Server
     elif algorithm=='UDL':
         from FedRec.code.base.Fed_UDL import Clients, Server
     elif algorithm=='DDR':
-        from FedRec.code.base.Fed_DDR import Clients, Server
+        from FedRec.code.base.component.Fed_DDR import Clients, Server
     elif algorithm=='RESKD':
-        from FedRec.code.base.Fed_RESKD import Clients, Server
+        from FedRec.code.base.component.Fed_RESKD import Clients, Server
     elif algorithm=='RESKD_DDR':
-        from FedRec.code.base.Fed_RESKD_DDR import Clients, Server
+        from FedRec.code.base.component.Fed_RESKD_DDR import Clients, Server
     elif algorithm=='RESKD_I':
-        from FedRec.code.base.Fed_RESKD_I import Clients, Server
+        from FedRec.code.base.component.Fed_RESKD_I import Clients, Server
     elif algorithm == 'UDL_DDR':
         from FedRec.code.base.Fed_UDL_DDR import Clients, Server
     elif algorithm == 'UDL_RESKD':
-        from FedRec.code.base.Fed_UDL_RESKD import Clients, Server
+        from FedRec.code.base.component.Fed_UDL_RESKD import Clients, Server
     elif algorithm == 'UDL_DDR_RESKD':
         from FedRec.code.base.Fed_UDL_DDR_RESKD import Clients, Server
     else:

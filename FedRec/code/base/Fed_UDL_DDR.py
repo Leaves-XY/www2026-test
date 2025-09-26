@@ -4,7 +4,7 @@ import time  # 添加time模块用于计时
 
 from FedRec.code.dataset import ClientsDataset, evaluate, evaluate_valid, evaluate_for_bert, evaluate_valid_for_bert
 from FedRec.code.metric import NDCG_binary_at_k_batch, AUC_at_k_batch, HR_at_k_batch
-from FedRec.code.untils import getModel,FedDecorrLoss
+from FedRec.code.untils import getModel,FedDecorrLoss,add_noise
 
 
 
@@ -319,6 +319,10 @@ class Clients:
 
             gradients = {name: param.grad.clone() for name, param in client_model.named_parameters() if
                          param.grad is not None}
+
+            if self.config['LDP_lambda'] > 0:
+                gradients = add_noise(gradients, self.config['LDP_lambda'])
+
             clients_grads[uid] = gradients
 
         return clients_grads, clients_losses

@@ -3,7 +3,8 @@ import torch
 import time  # 添加time模块用于计时
 from FedRec.code.dataset import ClientsDataset, evaluate, evaluate_valid, evaluate_for_bert, evaluate_valid_for_bert
 from FedRec.code.metric import NDCG_binary_at_k_batch, AUC_at_k_batch, HR_at_k_batch
-from FedRec.code.untils import getModel
+from FedRec.code.untils import getModel,add_noise
+
 
 
 class Clients:
@@ -29,6 +30,8 @@ class Clients:
         self.data_path = config ['datapath'] + config ['dataset'] + '/' + config ['train_data']
         self.maxlen = config ['max_seq_len']
         self.batch_size = config ['batch_size']
+
+        self.LDP_lambda=config['LDP_lambda']
 
         # 加载客户端数据集
         self.clients_data = ClientsDataset (self.data_path,maxlen = self.maxlen)
@@ -234,6 +237,10 @@ class Clients:
             optimizer.step()
             
             gradients = {name: param.grad.clone() for name, param in client_model.named_parameters() if param.grad is not None}
+
+            if self.LDP_lambda>0:
+                gradients = add_noise(gradients, self.LDP_lambda)
+
             clients_grads[uid] = gradients
 
         return clients_grads, clients_losses

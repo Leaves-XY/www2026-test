@@ -1,8 +1,9 @@
 import numpy as np
 import torch
 import time
-from ..dataset import ClientsDataset, evaluate, evaluate_valid
-from ..untils import getModel, FedDecorrLoss
+from FedRec.code.dataset import ClientsDataset, evaluate, evaluate_valid
+from FedRec.code.metric import NDCG_binary_at_k_batch, AUC_at_k_batch, HR_at_k_batch
+from FedRec.code.untils import getModel
 
 
 class Clients:
@@ -273,13 +274,11 @@ class Clients:
                 neg_seq = neg_seq[:, -max_seq_length:, :]
                 input_len = torch.clamp(input_len, max=max_seq_length)
 
-            feddecorr = FedDecorrLoss()
-            alpha=self.config['decor_alpha']
             seq_out = client_model(input_seq, input_len)
             padding_mask = (torch.not_equal(input_seq, 0)).float().unsqueeze(-1).to(self.device)
 
             loss = client_model.loss_function(seq_out, padding_mask, target_seq, neg_seq, input_len)
-            loss=loss+alpha*feddecorr(client_model.item_embedding.weight)
+
             clients_losses[uid] = loss.item()
 
             optimizer.zero_grad()
@@ -485,7 +484,6 @@ class Server:
         client_l = self.clients.model
         for param, server_param in zip(client_l.parameters(), self.model_l.parameters()):
             param.data.copy_(server_param.data)
-
 
     def _init_comm_cost_calculation(self):
         """预计算并存储模型尺寸，用于开销统计"""

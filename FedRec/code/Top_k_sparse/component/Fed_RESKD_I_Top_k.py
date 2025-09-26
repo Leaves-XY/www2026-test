@@ -1,9 +1,9 @@
 import numpy as np
 import torch
 import time
-from ..dataset import ClientsDataset, evaluate, evaluate_valid
-from ..metric import NDCG_binary_at_k_batch, AUC_at_k_batch, HR_at_k_batch
-from ..untils import getModel
+from FedRec.code.dataset import ClientsDataset, evaluate, evaluate_valid
+from FedRec.code.metric import NDCG_binary_at_k_batch, AUC_at_k_batch, HR_at_k_batch
+from FedRec.code.untils import getModel
 
 
 class Clients:
@@ -463,10 +463,37 @@ class Server:
         self.logger.info("知识蒸馏步骤完成")
 
     def _select_distill_items(self, item_set, ratio):
-        """随机选择蒸馏物品子集"""
-        num_items = len(item_set)
-        kd_size = max(1, int(num_items * ratio))
-        return np.random.choice(list(item_set), kd_size, replace=False)
+        """
+        从全体物品 item_set 中按“交互频率”加权，采样蒸馏物品子集。
+        - 忽略 padding(0)
+        - 权重全零时回退到均匀采样
+        """
+        dataset = self.clients.clients_data
+
+        # 1) 统计频率（过滤 padding=0）
+        freq = {}
+        for user_id, items_list in dataset.train_seq.items():
+            for it in items_list:
+                if it == 0:
+                    continue
+                freq[it] = freq.get(it, 0) + 1
+
+        # 2) 去掉 0，并且只在 item_set 内部采样
+        valid_items = [it for it in item_set if it != 0]
+
+        # 3) 构造采样权重；未知物品给个最小权重 1
+        weights = np.array([freq.get(it, 1) for it in valid_items], dtype=np.float32)
+        s = weights.sum()
+
+        # 4) 计算采样规模
+        kd_size = max(1, int(len(valid_items) * ratio))
+
+        if s <= 0 or not np.isfinite(s):
+            # 回退：均匀采样
+            return np.random.choice(valid_items, kd_size, replace=False)
+
+        weights /= s
+        return np.random.choice(valid_items, kd_size, replace=False, p=weights)
 
     def _update_client_models(self):
         """将蒸馏后的模型参数同步到客户端"""

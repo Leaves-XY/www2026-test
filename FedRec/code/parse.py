@@ -70,6 +70,8 @@ def parse_args():
     parser.add_argument ('--distill_freq', type = int, default = 3,  help = '蒸馏频率')
     parser.add_argument ('--eval_k', type = int, default = 10,  help = '评估')
 
+    parser.add_argument('--LDP_lambda', type=float, default=0, help='scale of laplace noise in LDP')
+
 
     # Top-k配置
     parser.add_argument ('--top_k_ratio', type = float, default = 0.1,help = 'Top-k比例，默认保留10%的梯度')
