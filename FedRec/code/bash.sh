@@ -1,4 +1,6 @@
-bsub -N -q gpu \
+#conda activate py39_torch
+
+bsub -N -q volta \
 -e ./lsflog/%J.err \
 -o ./lsflog/%J.out \
 -n 1 \

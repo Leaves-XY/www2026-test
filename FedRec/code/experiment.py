@@ -4,10 +4,10 @@ import sys
 
 # List of datasets to run experiments on.
 # Add or remove dataset names as needed.
-# Available datasets: ['ml-100k', 'ml-1m', 'LastFM', 'Yelp','Toys_and_Games','Sports_and_Outdoors','Video','Steam','beauty']
-MODEL=['BERT4Rec']
+# Available datasets: ['ml-100k', 'ml-1m', 'LastFM', 'Yelp','Video','Toys_and_Games','Sports_and_Outdoors','Steam','beauty']
+MODEL=['SASRec','BSARec']
 
-DATASETS_TO_RUN =['Video']
+DATASETS_TO_RUN =['ml-100k', 'ml-1m', 'LastFM', 'Yelp']
 
 # List of algorithms to run.
 # These are derived from the filenames in the algorithm directories.
@@ -33,9 +33,16 @@ def run_experiment():
                     "--dataset", dataset,
                     "--train_data",dataset + ".txt",
                     "--early_stop",'9',
-                    "--lr",'0.0003',
-                    "--kd_lr",'0.0003',
+                    "--lr",'0.001',
+                    "--kd_lr",'0.001',
                     "--max_seq_len",'200',
+                    "--dim_s","16",
+                    "--dim_m","32",
+                    "--dim_l","64",
+                    "--hidden_size","64",
+                    "--device_split", "0.5", "0.3",
+                    "--top_k_ratio","0.3",
+                    "--LDP_lambda","0.01"
                 ]
 
                 try:
