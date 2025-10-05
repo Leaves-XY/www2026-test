@@ -64,6 +64,10 @@ if __name__ == '__main__':
         from FedRec.code.base.component.Fed_UDL_RESKD import Clients, Server
     elif algorithm == 'UDL_DDR_RESKD':
         from FedRec.code.base.Fed_UDL_DDR_RESKD import Clients, Server
+    elif algorithm=='expense':
+        from FedRec.code.base.Fed_expense import Clients, Server
+    elif algorithm=='expense_Top_k':
+        from FedRec.code.Top_k_sparse.Fed_expense_Top_k import Clients, Server
     else:
         raise ValueError(f"不支持的算法: {algorithm}")
     # 构建客户端

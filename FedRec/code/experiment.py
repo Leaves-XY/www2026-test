@@ -5,15 +5,15 @@ import sys
 # List of datasets to run experiments on.
 # Add or remove dataset names as needed.
 # Available datasets: ['ml-100k', 'ml-1m', 'LastFM', 'Yelp','Video','Toys_and_Games','Sports_and_Outdoors','Steam','beauty']
-MODEL=['SASRec','BSARec']
+MODEL=['SASRec']
 
-DATASETS_TO_RUN =['ml-100k', 'ml-1m', 'LastFM', 'Yelp']
+DATASETS_TO_RUN =['ml-1m']
 
 # List of algorithms to run.
 # These are derived from the filenames in the algorithm directories.
 #['base','UDL','UDL_DDR','UDL_DDR_RESKD']
 #['base_Top_k','UDL_Top_k','UDL_DDR_Top_k','UDL_DDR_RESKD_Top_k']
-ALGORITHMS = ['base','UDL','UDL_DDR','UDL_DDR_RESKD']
+ALGORITHMS = ['base_Top_k']
 
 def run_experiment():
     """
@@ -39,10 +39,8 @@ def run_experiment():
                     "--dim_s","16",
                     "--dim_m","32",
                     "--dim_l","64",
-                    "--hidden_size","64",
-                    "--device_split", "0.5", "0.3",
-                    "--top_k_ratio","0.3",
-                    "--LDP_lambda","0.01"
+                    "--device_split", "0.34", "0.33",
+                    "--top_k_ratio","0.3"
                 ]
 
                 try:

@@ -13,11 +13,12 @@ def parse_args():
 
     config = yaml.safe_load(open(config_path, 'r', encoding='utf-8'))
 
-    parser.add_argument('--model',type = str,default ='BERT4Rec' ,choices = ['SASRec','FMLP','BSARec','BERT4Rec'],help='选择推荐模型')
+    parser.add_argument('--model',type = str,default ='SASRec' ,choices = ['SASRec','FMLP','BSARec','BERT4Rec'],help='选择推荐模型')
 
-    parser.add_argument ('--algorithm', type = str, default = 'UDL_DDR_RESKD',
+    parser.add_argument ('--algorithm', type = str, default = 'expense',
                          choices = ['base','UDL','UDL_DDR','UDL_RESKD','UDL_DDR_RESKD','RESKD_I','DDR','RESKD_DDR','RESKD','UDL',
                                     'base_Top_k','UDL_Top_k','UDL_DDR_Top_k','UDL_DDR_RESKD_Top_k','DDR_Top_k','RESKD_Top_k','UDL_RESKD_Top_k','DDR_RESKD_Top_k','RESKD_I_Top_k',
+                                    'expense','expense_Top_k'
                                     ], help = '算法选择')
 
     parser.add_argument('--early_stop',type=int,default=15,help='早停轮数')

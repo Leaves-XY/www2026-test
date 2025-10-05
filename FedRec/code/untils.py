@@ -83,7 +83,7 @@ class Logger:
         ensure_dir (log_root)
 
         current_time = datetime.datetime.now().strftime('%m%d-%H%M')
-        logfilename = f'{current_time}_{config ["model"]}_{config ["algorithm"]}_{config ["dataset"]}_{config["dim_s"]}_{config["dim_m"]}_{config["dim_l"]}_{config["device_split"]}_{config["LDP_lambda"]}.log'
+        logfilename = f'{current_time}_{config ["model"]}_{config ["algorithm"]}_{config ["dataset"]}_alpha{config["decor_alpha"]}_ratio{config["kd_ratio"]}_topk{config["top_k_ratio"]}.log'
         logfilepath = os.path.join (log_root, logfilename)
 
         self.filename = logfilepath
