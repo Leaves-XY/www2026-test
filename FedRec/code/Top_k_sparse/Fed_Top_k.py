@@ -3,16 +3,16 @@ import torch
 import time
 from ..dataset import ClientsDataset, evaluate, evaluate_valid
 from ..metric import NDCG_binary_at_k_batch, AUC_at_k_batch, HR_at_k_batch
-from ..untils import getModel, FedDecorrLoss,add_noise
+from ..untils import getModel, FedDecorrLoss, add_noise
 
 
 class Clients:
     """
-    联邦学习客户端类 - 支持Top-k梯度选择
-    主要改进：
-    1. 支持不同设备类型（小型/中型/大型）及其对应嵌入维度
-    2. 支持本地梯度Top-k选择，只传输最重要的k个梯度分量
-    3. 支持参数等价性维护
+    Federated Learning Client Class - Supports Top-k Gradient Selection
+    Main Improvements:
+    1. Supports different device types (Small/Medium/Large) and their corresponding embedding dimensions
+    2. Supports local gradient Top-k selection, only transmitting the k most important gradient components
+    3. Supports parameter equivalence maintenance
     """
 
     def __init__(self, config, logger):
@@ -20,42 +20,42 @@ class Clients:
         self.logger = logger
         self.config = config
 
-        # 添加异构设备维度配置
-        self.dim_s = config['dim_s']  # 小型设备嵌入维度
-        self.dim_m = config['dim_m']  # 中型设备嵌入维度
-        self.dim_l = config['dim_l']  # 大型设备嵌入维度
+        # Heterogeneous device dimension configuration
+        self.dim_s = config['dim_s']  # Small device embedding dimension
+        self.dim_m = config['dim_m']  # Medium device embedding dimension
+        self.dim_l = config['dim_l']  # Large device embedding dimension
 
-        # Top-k配置
-        self.top_k_ratio = config['top_k_ratio']  # Top-k比例，默认保留10%的梯度
-        self.top_k_method = config['top_k_method']  # 'global' 或 'layer-wise'
-        self.min_k = config['min_k']  # 每层最少保留的梯度数量
+        # Top-k configuration
+        self.top_k_ratio = config['top_k_ratio']  # Top-k ratio, default keeps 10% of gradients
+        self.top_k_method = config['top_k_method']  # 'global' or 'layer-wise'
+        self.min_k = config['min_k']  # Minimum number of gradients to keep for each layer
 
-        # Top-k统计
+        # Top-k statistics
         self.top_k_stats = {
             'total_gradients': 0,
             'selected_gradients': 0,
             'compression_ratio': 0.0
         }
 
-        # 数据路径
+        # Data path
         self.data_path = config['datapath'] + config['dataset'] + '/' + config['train_data']
         self.maxlen = config['max_seq_len']
         self.batch_size = config['batch_size']
 
-        # 加载客户端数据集
+        # Load client dataset
         self.clients_data = ClientsDataset(self.data_path, maxlen=self.maxlen)
         self.dataset = self.clients_data.get_dataset()
         self.user_train, self.user_valid, self.user_test, self.usernum, self.itemnum = self.dataset
 
-        # 设备选择
+        # Device selection
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        # 记录客户端设备类型
+        # Record client device types
         self.device_types = {}  # {uid: 's', 'm', 'l'}
 
         self._init_device_types()
 
-        # 创建三种尺寸的模型
+        # Create models of three sizes
         config_s = self.config.copy()
         config_s['hidden_size'] = self.dim_s
         self.model_s = getModel(config_s, self.clients_data.get_maxid()).to(self.device)
@@ -68,15 +68,15 @@ class Clients:
         config_l['hidden_size'] = self.dim_l
         self.model_l = getModel(config_l, self.clients_data.get_maxid()).to(self.device)
 
-        # Server类需要一个统一的model引用，我们让它引用最大模型
+        # The Server class needs a unified model reference, we let it reference the largest model
         self.model = self.model_l
 
-        self.logger.info(f"异构设备配置: dim_s={self.dim_s}, dim_m={self.dim_m}, dim_l={self.dim_l}")
-        self.logger.info(f"Top-k配置: 比例={self.top_k_ratio}, 方法={self.top_k_method}, 最小k={self.min_k}")
-        self.logger.info(f"设备类型分布: "
-                         f"小型:{sum(1 for t in self.device_types.values() if t == 's')}, "
-                         f"中型:{sum(1 for t in self.device_types.values() if t == 'm')}, "
-                         f"大型:{sum(1 for t in self.device_types.values() if t == 'l')}")
+        self.logger.info(f"Heterogeneous device config: dim_s={self.dim_s}, dim_m={self.dim_m}, dim_l={self.dim_l}")
+        self.logger.info(f"Top-k config: ratio={self.top_k_ratio}, method={self.top_k_method}, min_k={self.min_k}")
+        self.logger.info(f"Device type distribution: "
+                         f"Small:{sum(1 for t in self.device_types.values() if t == 's')}, "
+                         f"Medium:{sum(1 for t in self.device_types.values() if t == 'm')}, "
+                         f"Large:{sum(1 for t in self.device_types.values() if t == 'l')}")
 
     def _init_device_types(self):
         user_set = self.clients_data.get_user_set()
@@ -87,11 +87,11 @@ class Clients:
         num_m = int(total_users * (device_split[0] + device_split[1]))
 
         if self.config['assign_by_interactions']:
-            method = "按交互次序分配"
+            method = "Assigned by interaction order"
             user_interactions = {uid: len(self.user_train[uid]) for uid in user_set}
             sorted_users = sorted(user_set, key=lambda uid: user_interactions[uid])
         else:
-            method = "随机分配"
+            method = "Random assignment"
             sorted_users = list(user_set)
             np.random.shuffle(sorted_users)
 
@@ -108,10 +108,10 @@ class Clients:
         count_l = sum(1 for t in self.device_types.values() if t == 'l')
 
         self.logger.info(
-            f"嵌套设备类型分配完成({method}): "
-            f"小型={count_s}({count_s / total_users:.1%}), "
-            f"中型={count_m}({count_m / total_users:.1%}), "
-            f"大型={count_l}({count_l / total_users:.1%})"
+            f"Device type assignment completed ({method}): "
+            f"Small={count_s}({count_s / total_users:.1%}), "
+            f"Medium={count_m}({count_m / total_users:.1%}), "
+            f"Large={count_l}({count_l / total_users:.1%})"
         )
 
     def get_dim_for_client(self, uid):
@@ -136,17 +136,17 @@ class Clients:
 
     def apply_top_k_selection(self, gradients_dict):
         """
-        对梯度字典应用Top-k选择
-        返回压缩后的梯度字典和索引信息
+        Apply Top-k selection to the gradient dictionary
+        Returns the compressed gradient dictionary and index information
         """
         compressed_gradients = {}
         gradient_indices = {}
 
         if self.top_k_method == 'global':
-            # --- 修正后的全局Top-k逻辑 ---
-            # 1. 收集并展平所有梯度，同时记录各层信息
+            # --- Corrected global Top-k logic ---
+            # 1. Collect and flatten all gradients, while recording layer information
             all_gradients_flat = []
-            layer_info = []  # 存储层名称和原始形状
+            layer_info = []  # Store layer name and original shape
             for name, grad in gradients_dict.items():
                 if grad is not None:
                     all_gradients_flat.append(grad.flatten())
@@ -155,13 +155,13 @@ class Clients:
             if not all_gradients_flat:
                 return compressed_gradients, gradient_indices
 
-            # 2. 合并成一个全局梯度向量
+            # 2. Combine into a global gradient vector
             combined_gradients = torch.cat(all_gradients_flat)
 
-            # 3. 计算 Top-k 并获取全局索引
+            # 3. Calculate Top-k and get global indices
             k = max(self.min_k, int(len(combined_gradients) * self.top_k_ratio))
             
-            # 处理k=0的边缘情况
+            # Handle the edge case of k=0
             if k == 0:
                 for info in layer_info:
                     compressed_gradients[info['name']] = torch.zeros(info['shape'], device=self.device)
@@ -170,27 +170,27 @@ class Clients:
 
             _, top_indices_global = torch.topk(torch.abs(combined_gradients), k)
 
-            # 4. 创建一个稀疏的全局梯度向量，只保留Top-k的值
+            # 4. Create a sparse global gradient vector, keeping only Top-k values
             sparse_combined_gradients = torch.zeros_like(combined_gradients)
             sparse_combined_gradients[top_indices_global] = combined_gradients[top_indices_global]
 
-            # 5. 将稀疏向量切片并重建回各层的原始形状
+            # 5. Slice the sparse vector and rebuild it to the original shape of each layer
             start_idx = 0
             for i, info in enumerate(layer_info):
                 grad_size = all_gradients_flat[i].numel()
                 
-                # 从稀疏全局向量中提取当前层的部分
+                # Extract the current layer's part from the sparse global vector
                 layer_grad_sparse_flat = sparse_combined_gradients[start_idx : start_idx + grad_size]
                 
-                # 重塑为原始形状
+                # Reshape to the original shape
                 compressed_gradients[info['name']] = layer_grad_sparse_flat.reshape(info['shape'])
                 
-                # 找到非零元素的局部索引并展平
+                # Find the local indices of non-zero elements and flatten
                 gradient_indices[info['name']] = torch.nonzero(layer_grad_sparse_flat, as_tuple=False).flatten()
 
                 start_idx += grad_size
 
-        else:  # layer-wise (逐层选择)
+        else:  # layer-wise (selecting per layer)
             for name, grad in gradients_dict.items():
                 if grad is not None:
                     grad_flat = grad.flatten()
@@ -200,7 +200,7 @@ class Clients:
                         k = 0
                     else:
                         k = max(self.min_k, int(num_elements * self.top_k_ratio))
-                        k = min(k, num_elements) # 确保k不超过元素总数
+                        k = min(k, num_elements) # Ensure k does not exceed total number of elements
 
                     if k == 0:
                         compressed_grad = torch.zeros_like(grad_flat)
@@ -215,27 +215,10 @@ class Clients:
 
         return compressed_gradients, gradient_indices
 
-    def sync_models_from_server(self, server):
-        """从服务器同步蒸馏后的模型参数"""
-        # self.logger.info("同步服务器蒸馏后的模型参数...")
-
-        # 小模型同步
-        for param, server_param in zip(self.model_s.parameters(), server.model_s.parameters()):
-            param.data.copy_(server_param.data)
-
-        # 中模型同步
-        for param, server_param in zip(self.model_m.parameters(), server.model_m.parameters()):
-            param.data.copy_(server_param.data)
-
-        # 大模型同步
-        for param, server_param in zip(self.model.parameters(), server.model.parameters()):
-            param.data.copy_(server_param.data)
-
     def train(self, uids, model_param_state_dict, epoch=0):
-        self.sync_models_from_server(self)  # 同步模型
         clients_grads = {}
         clients_losses = {}
-        clients_indices = {}  # 存储每个客户端的梯度索引信息
+        clients_indices = {}  # Store gradient index information for each client
 
         for uid in uids:
             uid = uid.item()
@@ -280,30 +263,29 @@ class Clients:
 
             feddecorr = FedDecorrLoss ()
 
-            # 计算损失
-            # 根据设备类型选择损失函数
+            # Calculate loss
+            # Select loss function based on device type
             if dev_type == 's':
-                # 小型设备：只计算小型模型损失（使用完整用户特征）
+                # Small device: only calculate small model loss (using full user features)
                 loss = self.model_s.loss_function(seq_out, padding_mask, target_seq, neg_seq, input_len)
             elif dev_type == 'm':
-                # 中型设备：
-                # 1. 计算小型模型部分损失（使用小型特征子集 Ns）
+                # Medium device:
+                # 1. Calculate partial loss of small model (using small feature subset Ns)
                 loss_s = self.model_s.loss_function (seq_out, padding_mask, target_seq, neg_seq, input_len)
-                # 2. 计算中型模型整体损失（使用完整用户特征）
+                # 2. Calculate overall loss of medium model (using full user features)
                 loss_m = self.model_m.loss_function (seq_out, padding_mask, target_seq, neg_seq, input_len)
-                # 添加正则化损失（仅对高维部分）
+                # Add regularization loss (only for high-dimensional parts)
                 loss_reg = feddecorr(client_model.item_embedding.weight[:, self.dim_s:])
                 loss = loss_s + loss_m + alpha * loss_reg
             else:  # 'l'
-                # 大型设备：
-                # 1. 计算小型模型部分损失（使用小型特征子集 Ns）
+                # Large device：
+                # 1. Calculate partial loss of small model (using small feature subset Ns)
                 loss_s = self.model_s.loss_function (seq_out, padding_mask, target_seq, neg_seq, input_len)
-                # 2. 计算中型模型整体损失（使用完整用户特征）
+                # 2. Calculate overall loss of medium model (using full user features)
                 loss_m = self.model_m.loss_function (seq_out, padding_mask, target_seq, neg_seq, input_len)
-                # 3. 计算大型模型整体损失（使用完整用户特征）
+                # 3. Calculate overall loss of large model (using full user features)
                 loss_l = self.model_l.loss_function (seq_out, padding_mask, target_seq, neg_seq, input_len)
-                # 添加正则化损失（仅对高维部分）
-
+                # Add regularization loss (only for high-dimensional parts)
                 loss_reg = feddecorr (client_model.item_embedding.weight [:, self.dim_s:])
                 loss =loss_l + loss_s + loss_m + alpha * loss_reg
 
@@ -312,28 +294,28 @@ class Clients:
             optimizer.zero_grad()
             loss.backward()
 
-            # 收集所有梯度
+            # Collect all gradients
             gradients = {name: param.grad.clone() for name, param in client_model.named_parameters() if
                          param.grad is not None}
 
             if self.config['LDP_lambda'] > 0:
                 gradients = add_noise(gradients, self.config['LDP_lambda'])
 
-            # 应用Top-k选择
+            # Apply Top-k selection
             compressed_gradients, gradient_indices = self.apply_top_k_selection(gradients)
 
-            # 更新模型参数为压缩后的梯度
+            # Update model parameters to compressed gradients
             for name, param in client_model.named_parameters():
                 if name in compressed_gradients:
                     param.grad = compressed_gradients[name]
 
             optimizer.step()
 
-            # 存储压缩后的梯度和索引信息
+            # Store compressed gradients and index information
             clients_grads[uid] = compressed_gradients
             clients_indices[uid] = gradient_indices
 
-        # 更新Top-k统计信息
+        # Update Top-k statistics
         total_gradients = sum(len(grad.flatten()) for grads in clients_grads.values() for grad in grads.values())
         selected_gradients = sum(
             len(indices) for indices_list in clients_indices.values() for indices in indices_list.values())
@@ -366,191 +348,30 @@ class Server:
         self.eval_k = config['eval_k']
 
         config['hidden_size'] = self.dim_l
-        # 添加知识蒸馏相关参数
-        self.kd_ratio = config['kd_ratio']  # 蒸馏物品采样比例
-        self.kd_lr = config['kd_lr']  # 蒸馏学习率
-        self.distill_epochs = config['distill_epochs']  # 蒸馏轮次
+        self.model = getModel(config, self.clients.clients_data.get_maxid())
+        self.model.to(self.device)
 
-        # 修正1：创建正确的配置对象
-        # 创建小模型配置
-        config_s = config.copy()
-        config_s['hidden_size'] = self.dim_s
-        # 创建中模型配置
-        config_m = config.copy()
-        config_m['hidden_size'] = self.dim_m
-        # 创建大模型配置（使用全局模型配置）
-        config_l = config.copy()
-        config_l['hidden_size'] = self.dim_l
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=config['lr'],
+                                          betas=(0.9, 0.98), weight_decay=config['l2_reg'])
 
-        # 修正2：正确初始化三种尺寸的模型
-        self.model_s = getModel(config_s, self.clients.clients_data.get_maxid())
-        self.model_m = getModel(config_m, self.clients.clients_data.get_maxid())
-        self.model_l = getModel(config_l, self.clients.clients_data.get_maxid())
+        logger.info("Server initialization completed")
 
-        # 修正3：将模型转移到设备并初始化参数
-        for model in [self.model_s, self.model_m, self.model_l]:
-            model.to(self.device)
-            # 初始化模型参数
-            for name, param in model.named_parameters():
-                try:
-                    torch.nn.init.xavier_normal_(param.data)
-                except:
-                    pass  # 忽略初始化失败的层
-
-        # 修正4：确保全局模型与蒸馏大模型一致
-        self.model = self.model_l  # 让全局模型引用蒸馏大模型
-        self.optimizer = torch.optim.Adam(self.model.parameters(),
-                                          lr=config['lr'],
-                                          betas=(0.9, 0.98),
-                                          weight_decay=config['l2_reg'])
-
-        # 创建蒸馏优化器，包含所有三个模型的参数
-        kd_params = list(self.model_s.parameters()) + list(self.model_m.parameters()) + list(self.model_l.parameters())
-        self.kd_optimizer = torch.optim.Adam(kd_params, lr=self.kd_lr)
-
-        logger.info("初始化知识蒸馏模块完成")
-        logger.info("服务器初始化完成")
-
-        # --- 通信开销计算模块初始化 ---
+        # --- Communication cost calculation module initialization ---
         self._init_comm_cost_calculation()
 
-        # 添加累积通信开销变量
+        # Add cumulative communication cost variables
         self.cumulative_uplink_cost = 0.0
         self.cumulative_downlink_cost = 0.0
 
-    def _knowledge_distillation(self):
-        """执行基于关系的集成自知识蒸馏 - 修复尺寸不匹配问题"""
-        self.logger.info("开始知识蒸馏步骤...")
-
-        # 1. 准备三个模型
-        models = {
-            's': self.model_s,
-            'm': self.model_m,
-            'l': self.model_l
-        }
-
-        # 2. 随机选择蒸馏物品子集
-        item_set = self.clients.clients_data.item_set
-        kd_items = self._select_distill_items(item_set, self.kd_ratio)
-        kd_size = len(kd_items)
-        self.logger.info(f"蒸馏物品子集大小: {kd_size}个物品")
-
-        # 3. 将物品ID转换为嵌入索引
-        # 确保索引在有效范围内
-        max_index = self.clients.itemnum - 1
-        kd_index = torch.from_numpy(np.clip(kd_items - 1, 0, max_index)).long().to(self.device)
-
-        # 4. 计算每个模型的物品嵌入 - 只针对蒸馏物品子集
-        similarity_matrices = {}
-        with torch.no_grad():
-            for model_type, model in models.items():
-                # 只计算蒸馏物品子集的嵌入
-                embeddings = model.item_embedding(kd_index)
-
-                # 归一化处理
-                norms = embeddings.norm(dim=1, keepdim=True).clamp(min=1e-8)
-                norm_emb = embeddings / norms
-
-                # 计算物品间的余弦相似度
-                sim_matrix = torch.mm(norm_emb, norm_emb.t())
-                similarity_matrices[model_type] = sim_matrix
-
-        # 5. 计算集成相似度 - 确保所有矩阵尺寸一致
-        ens_matrix = (similarity_matrices['s'] +
-                      similarity_matrices['m'] +
-                      similarity_matrices['l']) / 3.0
-
-        # 6. 蒸馏训练
-        for epoch_idx in range(self.distill_epochs):
-            self.kd_optimizer.zero_grad()
-
-            # 重新计算当前模型的相似度
-            current_similarities = {}
-            for model_type, model in models.items():
-                embeddings = model.item_embedding(kd_index)
-                norms = embeddings.norm(dim=1, keepdim=True).clamp(min=1e-8)
-                norm_emb = embeddings / norms
-                sim_matrix = torch.mm(norm_emb, norm_emb.t())
-                current_similarities[model_type] = sim_matrix
-
-            # 计算蒸馏损失 - 使用MSE
-            loss = 0
-            for model_type in models:
-                loss += torch.nn.functional.mse_loss(
-                    current_similarities[model_type],
-                    ens_matrix.detach()
-                )
-
-            # 反向传播
-            loss.backward()
-            self.kd_optimizer.step()
-
-            self.logger.info(f"蒸馏轮次 [{epoch_idx + 1}/{self.distill_epochs}] 损失: {loss.item():.4f}")
-
-        # 7. 更新客户端模型
-        self._update_client_models()
-
-        self.logger.info("知识蒸馏步骤完成")
-
-    def _select_distill_items ( self, item_set, ratio ):
-        """
-        从全体物品 item_set 中按“交互频率”加权，采样蒸馏物品子集。
-        - 忽略 padding(0)
-        - 权重全零时回退到均匀采样
-        """
-        dataset = self.clients.clients_data
-
-        # 1) 统计频率（过滤 padding=0）
-        freq = {}
-        for user_id, items_list in dataset.train_seq.items ():
-            for it in items_list:
-                if it == 0:
-                    continue
-                freq [it] = freq.get (it, 0) + 1
-
-        # 2) 去掉 0，并且只在 item_set 内部采样
-        valid_items = [it for it in item_set if it != 0]
-
-        # 3) 构造采样权重；未知物品给个最小权重 1
-        weights = np.array ([freq.get (it, 1) for it in valid_items], dtype = np.float32)
-        s = weights.sum ()
-
-        # 4) 计算采样规模
-        kd_size = max (1, int (len (valid_items) * ratio))
-
-        if s <= 0 or not np.isfinite (s):
-            # 回退：均匀采样
-            return np.random.choice (valid_items, kd_size, replace = False)
-
-        weights /= s
-        return np.random.choice (valid_items, kd_size, replace = False, p = weights)
-
-    def _update_client_models(self):
-        """将蒸馏后的模型参数同步到客户端"""
-        # 小模型更新
-        client_s = self.clients.model_s
-        for param, server_param in zip(client_s.parameters(), self.model_s.parameters()):
-            param.data.copy_(server_param.data)
-
-        # 中模型更新
-        client_m = self.clients.model_m
-        for param, server_param in zip(client_m.parameters(), self.model_m.parameters()):
-            param.data.copy_(server_param.data)
-
-        # 大模型更新（全局模型）
-        client_l = self.clients.model
-        for param, server_param in zip(client_l.parameters(), self.model_l.parameters()):
-            param.data.copy_(server_param.data)
-
     def _init_comm_cost_calculation(self):
-        """预计算并存储模型尺寸，用于开销统计"""
-        self.logger.info("初始化通信开销计算器...")
-        # 预计算三种尺寸模型的总参数大小 (MB)
+        """Pre-calculate and store model sizes for cost statistics"""
+        self.logger.info("Initializing communication cost calculator...")
+        # Pre-calculate total parameter size of three model sizes (MB)
         self.size_p_s = self._calculate_dense_params_size(self.clients.model_s.state_dict())
         self.size_p_m = self._calculate_dense_params_size(self.clients.model_m.state_dict())
         self.size_p_l = self._calculate_dense_params_size(self.clients.model_l.state_dict())
 
-        self.logger.info(f"预计算模型尺寸 (MB): "
+        self.logger.info(f"Precomputed model size (MB): "
                          f"S={self.size_p_s:.4f}, "
                          f"M={self.size_p_m:.4f}, "
                          f"L={self.size_p_l:.4f}")
@@ -558,7 +379,7 @@ class Server:
     def aggregate_gradients(self, clients_grads, clients_indices):
         clients_num = len(clients_grads)
         if clients_num == 0:
-            self.logger.info("没有收到任何客户端梯度")
+            self.logger.info("No client gradients received")
             return
 
         aggregated_gradients = {name: torch.zeros_like(param) for name, param in self.model.named_parameters() if
@@ -591,25 +412,24 @@ class Server:
                 param.grad = None
 
     def _calculate_dense_params_size(self, params_dict):
-        """计算密集参数字典的总大小（MB）"""
+        """Calculate the total size of dense parameter dictionary (MB)"""
         total_size = 0
         for param in params_dict.values():
             if isinstance(param, torch.Tensor):
                 total_size += param.nelement() * param.element_size()
-        return total_size / (1024 * 1024)  # 返回MB
+        return total_size / (1024 * 1024)  # Return in MB
 
     def _calculate_sparse_params_size(self, indices_dict):
-        """计算稀疏梯度（值+索引）的总大小（MB）"""
+        """Calculate the total size of sparse gradients (values + indices) (MB)"""
         total_elements = 0
         for indices in indices_dict.values():
             total_elements += len(indices)
-        # 假设传输每个值(float32=4字节)和其对应的索引(int64=8字节)
-        # 实际传输中索引可能会被压缩，但这里作为一种上界估计
+        # Assuming transmission of each value (float32=4 bytes) and its corresponding index (int64=8 bytes)
+        # In actual transmission, indices may be compressed, but this serves as an upper bound estimate
         total_size = total_elements * 4
-        return total_size / (1024 * 1024)  # 返回MB
+        return total_size / (1024 * 1024)  # Return in MB
 
     def train(self):
-        self.clients.sync_models_from_server(self)  # 传递服务器实例
         user_set = self.clients.clients_data.get_user_set()
         uid_seq = []
         for i in range(0, len(user_set), self.batch_size):
@@ -619,14 +439,14 @@ class Server:
         best_val_ndcg, best_val_hr = 0.0, 0.0
         best_test_ndcg, best_test_hr = 0.0, 0.0
 
-        # 初始化模型参数
+        # Initialize model parameters
         for name, param in self.model.named_parameters():
             try:
                 torch.nn.init.xavier_normal_(param.data)
             except:
-                pass  # 忽略初始化失败的层
+                pass  # Ignore layers that fail to initialize
 
-        # 设置embedding层的padding位置为0
+        # Set padding position of embedding layers to 0
         if hasattr(self.model, 'position_embedding'):
             self.model.position_embedding.weight.data[0, :] = 0
         if hasattr(self.model, 'item_embedding'):
@@ -636,13 +456,12 @@ class Server:
         t0 = time.time()
 
         no_improve_count = 0
-        early_stop_triggered = False  # 添加早停标志
-        distill_freq=self.config['distill_freq']
+        early_stop_triggered = False  # Add early stop flag
         for epoch in range(self.epochs):
             epoch_start_time = time.time()
             self.model.train()
 
-            # --- 通信开销计算初始化 ---
+            # --- Communication cost calculation initialization ---
             total_uplink_cost = 0
             total_downlink_cost = 0
             # -------------------------
@@ -650,14 +469,14 @@ class Server:
             batch_count = 0
             epoch_losses = []
 
-            # 获取要发送的全局模型参数
+            # Get the global model parameters to be sent
             model_state_to_send = self.model.state_dict()
 
             for uids in uid_seq:
                 self.optimizer.zero_grad()
 
-                # --- 计算下行链路开销 ---
-                # 根据每个客户端的实际模型尺寸计算下行开销
+                # --- Calculate downlink cost ---
+                # Calculate downlink cost based on the actual model size of each client
                 downlink_cost_batch = 0
                 for uid in uids:
                     dev_type = self.clients.device_types.get(uid.item(), 'l')
@@ -672,8 +491,8 @@ class Server:
 
                 clients_grads, clients_losses, clients_indices = self.clients.train(uids, model_state_to_send, epoch)
 
-                # --- 计算上行链路开销 ---
-                # 客户端上传稀疏梯度（值+索引）
+                # --- Calculate uplink cost ---
+                # Clients upload sparse gradients (values + indices)
                 for client_uid, indices_dict in clients_indices.items():
                     total_uplink_cost += self._calculate_sparse_params_size(indices_dict)
                 # -------------------------
@@ -687,25 +506,23 @@ class Server:
 
                 batch_count += 1
 
-            if (epoch + 1) % distill_freq == 0:
-                self._knowledge_distillation()
-            # --- 更新累积通信开销 ---
+            # --- Update cumulative communication cost ---
             self.cumulative_uplink_cost += total_uplink_cost
             self.cumulative_downlink_cost += total_downlink_cost
 
-            # --- 记录通信开销（当前epoch和累积总量） ---
+            # --- Log communication cost (current epoch and cumulative total) ---
 
-            self.logger.info(f"累积通信开销: "
-                             f"上行 = {self.cumulative_uplink_cost:.4f} MB, "
-                             f"下行 = {self.cumulative_downlink_cost:.4f} MB, "
-                             f"总计 = {self.cumulative_uplink_cost + self.cumulative_downlink_cost:.4f} MB")
+            self.logger.info(f"Cumulative communication cost: "
+                             f"Uplink = {self.cumulative_uplink_cost:.4f} MB, "
+                             f"Downlink = {self.cumulative_downlink_cost:.4f} MB, "
+                             f"Total = {self.cumulative_uplink_cost + self.cumulative_downlink_cost:.4f} MB")
             # --------------------
 
             eval_freq = self.eval_freq
             should_evaluate = (epoch + 1) % eval_freq == 0 or epoch == 0 or epoch == self.epochs - 1
             if should_evaluate:
                 self.model.eval()
-                # t1是该轮训练时间 T为总时间
+                # t1 is the training time of this round, T is the total time
                 t1 = time.time() - t0
                 T += t1
                 print('Evaluating', end='')
@@ -713,63 +530,63 @@ class Server:
                 t_valid = evaluate_valid(self.model, self.dataset, self.maxlen, self.clients.neg_num, self.eval_k,
                                          self.config['full_eval'], self.device)
                 self.logger.info(
-                    f"传统评估结果 - Epoch {epoch + 1}: NDCG@{self.eval_k}={t_valid[0]:.4f}, HR@{self.eval_k}={t_valid[1]:.4f}")
+                    f"Evaluation result - Epoch {epoch + 1}: NDCG@{self.eval_k}={t_valid[0]:.4f}, HR@{self.eval_k}={t_valid[1]:.4f}")
 
-                # 输出Top-k统计信息
+                # Output Top-k statistics
                 stats = self.clients.top_k_stats
                 if stats['total_gradients'] > 0:
                     compression_ratio = stats['compression_ratio']
-                    self.logger.info(f"Top-k压缩统计: 总梯度数={stats['total_gradients']}, "
-                                     f"选择梯度数={stats['selected_gradients']}, "
-                                     f"压缩比例={compression_ratio:.2%}")
+                    self.logger.info(f"Top-k compression stats: total_gradients={stats['total_gradients']}, "
+                                     f"selected_gradients={stats['selected_gradients']}, "
+                                     f"compression_ratio={compression_ratio:.2%}")
 
-                # 检查评估结果是否异常
+                # Check for abnormal evaluation results
                 if t_valid[0] >= 0.99 or t_valid[1] >= 0.99 or np.isnan(t_valid[0]) or np.isnan(t_valid[1]):
                     self.logger.info(
-                        f"检测到异常评估结果: NDCG@{self.eval_k}={t_valid[0]:.4f}, HR@{self.eval_k}={t_valid[1]:.4f}")
+                        f"Abnormal evaluation result detected: NDCG@{self.eval_k}={t_valid[0]:.4f}, HR@{self.eval_k}={t_valid[1]:.4f}")
 
-                # 早停检查 - 检查NDCG是否有所改善
+                # Early stopping check - Check if NDCG has improved
                 if self.early_stop_enabled:
                     if t_valid[0] > best_val_ndcg:
-                        # NDCG有改善，重置计数器
+                        # NDCG improved, reset counter
                         no_improve_count = 0
                         best_val_ndcg = t_valid[0]
                     else:
-                        # NDCG没有改善，增加计数器
+                        # NDCG did not improve, increase counter
                         no_improve_count += 1
 
-                    # 如果连续多轮没有改善，触发早停
+                    # If no improvement for several consecutive rounds, trigger early stopping
                     if no_improve_count >= self.early_stop:
-                        self.logger.info(f"早停触发！NDCG在{self.early_stop}轮内没有改善。")
+                        self.logger.info(f"Early stopping triggered! NDCG did not improve for {self.early_stop} rounds.")
                         early_stop_triggered = True
 
-                # 测试集评估（可选）- 也使用异构评估
+                # Test set evaluation (optional) - also use heterogeneous evaluation
                 if not self.skip_test_eval:
-                    # 这里可以添加测试集的异构评估，暂时使用传统方法
+                    # Add test set heterogeneous evaluation here, temporarily using traditional method
                     t_test = evaluate(self.model, self.dataset, self.maxlen, self.clients.neg_num, self.eval_k,
                                       self.config['full_eval'], self.device)
 
-                    # 检查测试集评估结果是否异常
+                    # Check test set evaluation results for abnormalities
                     if t_test[0] >= 0.99 or t_test[1] >= 0.99 or np.isnan(t_test[0]) or np.isnan(t_test[1]):
                         self.logger.info(
-                            f"检测到异常测试结果: NDCG@{self.eval_k}={t_test[0]:.4f}, HR@{self.eval_k}={t_test[1]:.4f}")
+                            f"Abnormal test result detected: NDCG@{self.eval_k}={t_test[0]:.4f}, HR@{self.eval_k}={t_test[1]:.4f}")
 
-                    # 记录到日志
+                    # Log results
                     self.logger.info(
                         'epoch:%d, time: %f(s), valid (NDCG@%d: %.4f, HR@%d: %.4f), test (NDCG@%d: %.4f, HR@%d: %.4f) all_time: %f(s)'
                         % (epoch + 1, t1, self.eval_k, t_valid[0], self.eval_k, t_valid[1], self.eval_k, t_test[0],
                            self.eval_k, t_test[1], T))
                 else:
-                    # 跳过测试集评估，设置默认值
+                    # Skip test set evaluation, set default values
                     t_test = (0.0, 0.0)
-                    # 记录到日志
+                    # Log results
                     self.logger.info(
                         'epoch:%d, time: %f(s), valid (NDCG@%d: %.4f, HR@%d: %.4f), test: SKIPPED, all_time: %f(s)'
                         % (epoch + 1, t1, self.eval_k, t_valid[0], self.eval_k, t_valid[1], T))
 
-                # 更新最佳结果
+                # Update best results
                 if not self.skip_test_eval:
-                    # 包含测试集评估的情况
+                    # Include test set evaluation
                     if t_valid[0] > best_val_ndcg or t_valid[1] > best_val_hr or t_test[0] > best_test_ndcg or \
                             t_test[1] > best_test_hr:
                         best_val_ndcg = max(t_valid[0], best_val_ndcg)
@@ -777,33 +594,29 @@ class Server:
                         best_test_ndcg = max(t_test[0], best_test_ndcg)
                         best_test_hr = max(t_test[1], best_test_hr)
                         self.logger.info(
-                            f"新的最佳性能: valid NDCG@{self.eval_k}={best_val_ndcg:.4f}, test NDCG@{self.eval_k}={best_test_ndcg:.4f}")
+                            f"New best performance: valid NDCG@{self.eval_k}={best_val_ndcg:.4f}, test NDCG@{self.eval_k}={best_test_ndcg:.4f}")
 
                 else:
-                    # 跳过测试集评估的情况，只基于验证集更新
+                    # Skip test set evaluation
                     if t_valid[0] > best_val_ndcg or t_valid[1] > best_val_hr:
                         best_val_ndcg = max(t_valid[0], best_val_ndcg)
                         best_val_hr = max(t_valid[1], best_val_hr)
                         self.logger.info(
-                            f"新的最佳性能: valid NDCG@{self.eval_k}={best_val_ndcg:.4f}, valid HR@{self.eval_k}={best_val_hr:.4f}")
+                            f"New best performance: valid NDCG@{self.eval_k}={best_val_ndcg:.4f}, valid HR@{self.eval_k}={best_val_hr:.4f}")
 
                 t0 = time.time()
                 self.model.train()
 
-                # 在评估完成后检查早停标志
+                # Check early stop flag after evaluation
                 if early_stop_triggered:
                     break
 
-                # 如果早停被触发，跳出训练循环
-            if early_stop_triggered:
-                break
-
-        # 记录最佳结果
+        # Record best results
         if not self.skip_test_eval:
             self.logger.info(
-                '[联邦训练] 最佳结果: valid NDCG@{}={:.4f}, HR@{}={:.4f}, test NDCG@{}={:.4f}, HR@{}={:.4f}'.format(
+                '[Federated Training] Best result: valid NDCG@{}={:.4f}, HR@{}={:.4f}, test NDCG@{}={:.4f}, HR@{}={:.4f}'.format(
                     self.eval_k, best_val_ndcg, self.eval_k, best_val_hr, self.eval_k, best_test_ndcg, self.eval_k,
                     best_test_hr))
         else:
-            self.logger.info('[联邦训练] 最佳结果: valid NDCG@{}={:.4f}, HR@{}={:.4f} (测试集评估已跳过)'.format(
+            self.logger.info('[Federated Training] Best result: valid NDCG@{}={:.4f}, HR@{}={:.4f} (Test set evaluation skipped)'.format(
                 self.eval_k, best_val_ndcg, self.eval_k, best_val_hr))

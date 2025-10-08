@@ -1,26 +1,23 @@
 #Train
-early_stop_enabled: True  #早停
+early_stop_enabled: True
 early_stop: 15
-eval_k: 10  #评估指标 HR@K NDCG@K
+eval_k: 10  HR@K NDCG@K
 
 # Path
 datapath: ../../data/
 log_path: ../log
 
-#设备分配
-assign_by_interactions: False  # 按照用户交互次数分配设备类型
 
-device_split: [0.5, 0.8]  # 小型和中型设备的分配比例阈值 大型为1-sum(device_split)
+assign_by_interactions: False
 
-# 异构设备维度配置
-dim_s: 16  # 小型设备嵌入维度   [64 64 64]
-dim_m: 32  # 中型设备嵌入维度  
-dim_l: 64  # 大型设备嵌入维度
+device_split: [0.5, 0.8]
 
-# 设备类型配置
-device_types: {}  # 设备类型分配字典，空字典表示使用随机分配
+dim_s: 16
+dim_m: 32
+dim_l: 64
 
-# Top-k配置
-top_k_ratio: 0.1  # Top-k比例，默认保留10%的梯度 (0.01-1.0)
-top_k_method: 'global'  # Top-k选择方法: 'global' 或 'layer-wise'
-min_k: 1  # 每层最少保留的梯度数量
+device_types: {}
+
+top_k_ratio: 0.1
+top_k_method: 'global'
+min_k: 1
